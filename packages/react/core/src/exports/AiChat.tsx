@@ -26,6 +26,7 @@ import {useSubmitPromptHandler} from './hooks/useSubmitPromptHandler';
 import {useUiOverrides} from './hooks/useUiOverrides';
 import {usMarkdownContainers} from './hooks/usMarkdownContainers';
 import {AiChatProps} from './props';
+import { RemixComposerComp } from '../sections/Composer/RemixComposer';
 
 export const AiChat: <AiMsg>(
     props: AiChatProps<AiMsg>,
@@ -228,19 +229,19 @@ export const AiChat: <AiMsg>(
                         />
                     </div>
                     <div className="nlux-composer-container">
-                        <ComposerComp
-                            status={composerStatus}
-                            prompt={prompt}
-                            hasValidInput={hasValidInput}
-                            placeholder={props.composerOptions?.placeholder}
-                            autoFocus={props.composerOptions?.autoFocus}
-                            submitShortcut={props.composerOptions?.submitShortcut}
-                            hideStopButton={props.composerOptions?.hideStopButton}
-                            onChange={handlePromptChange}
-                            onSubmit={handleSubmitPrompt}
-                            onCancel={cancelLastMessageRequest}
-                            Loader={uiOverrides.Loader}
-                        />
+                        {uiOverrides.Composer ? (
+                            uiOverrides.Composer
+                        ) : (
+                            <RemixComposerComp
+                                status={composerStatus}
+                                prompt={prompt}
+                                hasValidInput={hasValidInput}
+                                onChange={handlePromptChange}
+                                onSubmit={handleSubmitPrompt}
+                                onCancel={cancelLastMessageRequest}
+                                Loader={uiOverrides.Loader}
+                            />
+                        )}
                     </div>
                 </div>
             </div>

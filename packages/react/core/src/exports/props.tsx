@@ -1,12 +1,12 @@
-import {ComposerOptions, DisplayOptions, EventsConfig, StandardChatAdapter} from '@nlux/core';
-import {ChatAdapterBuilder} from '@shared/types/adapters/chat/chatAdapterBuilder';
-import {ChatItem} from '@shared/types/conversation';
-import {ReactNode} from 'react';
-import {ChatAdapter} from '../types/chatAdapter';
-import {ConversationOptions} from '../types/conversationOptions';
-import {AiChatApi} from './hooks/useAiChatApi';
-import {MessageOptions} from './messageOptions';
-import {PersonaOptions} from './personaOptions';
+import {ComposerOptions, DisplayOptions, EventsConfig, RemixComposerOptions, StandardChatAdapter} from '@nlux/core'
+import {ChatAdapterBuilder} from '@shared/types/adapters/chat/chatAdapterBuilder'
+import {ChatItem} from '@shared/types/conversation'
+import {ReactNode} from 'react'
+import {ChatAdapter} from '../types/chatAdapter'
+import {ConversationOptions} from '../types/conversationOptions'
+import {AiChatApi} from './hooks/useAiChatApi'
+import {MessageOptions} from './messageOptions'
+import {PersonaOptions} from './personaOptions'
 
 /**
  * Props for the AiChat React component.
@@ -58,7 +58,7 @@ export type AiChatProps<AiMsg = string> = {
     /**
      * Options for the composer.
      */
-    composerOptions?: ComposerOptions;
+    composerOptions?: RemixComposerOptions
 
     /**
      * Options for the persona.
