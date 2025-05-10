@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {ComposerOptions, DisplayOptions, EventsConfig, RemixComposerOptions, StandardChatAdapter} from '@nlux/core'
 import {ChatAdapterBuilder} from '@shared/types/adapters/chat/chatAdapterBuilder'
 import {ChatItem} from '@shared/types/conversation'
@@ -59,6 +60,12 @@ export type AiChatProps<AiMsg = string> = {
      * Options for the composer.
      */
     composerOptions?: RemixComposerOptions
+
+    /**
+     * Function to add context files to the chat.
+     * This is used to provide file context to the AI model.
+     */
+    addContextFiles?: (pluginName: any, methodName: string, payload: { context: 'currentFile' | 'workspace' | 'openedFiles' }) => Promise<any>
 
     /**
      * Options for the persona.

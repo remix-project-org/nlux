@@ -100,11 +100,11 @@ export const AiChat: <AiMsg>(
         aiChatProps: props, adapterToUse, conversationRef, initialSegment, newSegments,
         cancelledMessageIds, cancelledSegmentIds, prompt, composerOptions, showException,
         setChatSegments, setComposerStatus, setPrompt,
-    });
+    })
 
     const handleResubmitPrompt = useResubmitPromptHandler(
         initialSegment, setInitialSegment, newSegments, setChatSegments, setPrompt, setComposerStatus,
-    );
+    )
 
     const handleMarkdownStreamRendered = useCallback((_segmentId: string, messageId: string) => {
         if (props.events?.messageRendered) {
@@ -239,6 +239,7 @@ export const AiChat: <AiMsg>(
                                 onChange={handlePromptChange}
                                 onSubmit={handleSubmitPrompt}
                                 onCancel={cancelLastMessageRequest}
+                                addContextFiles={props.addContextFiles}
                                 Loader={uiOverrides.Loader}
                             />
                         )}

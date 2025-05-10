@@ -1,13 +1,15 @@
+ 
 import {className as compComposerClassName} from '@shared/components/Composer/create'
 import {ComposerStatus} from '@shared/components/Composer/props'
 import {
     statusClassName as compComposerStatusClassName,
 } from '@shared/components/Composer/utils/applyNewStatusClassName'
 import {isSubmitShortcutKey} from '@shared/utils/isSubmitShortcutKey'
-import {ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState} from 'react'
+import React,{ChangeEvent, KeyboardEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {CancelIconComp} from '../../components/CancelIcon/CancelIconComp'
 import {SendIconComp} from '../../components/SendIcon/SendIconComp'
 import {RemixComposerProps} from './props'
+import { initialState, promptReducer } from './composer-reducers/reducer'
 
 const submittingPromptStatuses: Array<ComposerStatus> = [
     'submitting-prompt',
@@ -15,6 +17,15 @@ const submittingPromptStatuses: Array<ComposerStatus> = [
     'submitting-conversation-starter',
     'submitting-external-message',
 ]
+
+export function RenderIf({ condition, children }: { condition: boolean, children: JSX.Element }) {
+  return condition ? children : null
+}
+
+export function RenderIfNot({ condition, children }: { condition: boolean, children: JSX.Element }) {
+  return condition ? null : children
+}
+
 
 export const RemixComposerComp = (props: RemixComposerProps) => {
   const compClassNameFromStats = compComposerStatusClassName[props.status] || ''
@@ -26,7 +37,16 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
   const showSendIcon = props.status === 'typing' || props.status === 'waiting';
   const hideCancelButton = props.hideStopButton === true;
   const showCancelButton = !hideCancelButton && (submittingPromptStatuses.includes(props.status) || props.status
-      === 'waiting');
+      === 'waiting')
+  
+      const [promptState, promptDispatch] = useReducer(promptReducer, initialState)
+
+      const removeFile = (file: string) => {
+        promptDispatch({ type: 'REMOVE_FILE', payload: file })
+      }
+      const removeAllFiles = () => {
+        promptDispatch({ type: 'REMOVE_ALL_FILES' })
+      }
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -70,12 +90,17 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
 
   return (
       <div className={className}>
-        {selectContext && <div className="d-flex flex-column border w-100 px-3 pt-3 align-items-start justify-content-center align-self-start">
+        {promptState.selectContext && <div className="d-flex flex-column border w-100 px-3 pt-3 align-items-start justify-content-center align-self-start">
         <div className="text-uppercase mb-2 ml-2">Add context files</div>
         <ul className="list-unstyled">
           <li>
             <div className="d-flex ml-2 custom-control custom-radio">
-              <input className="custom-control-input" type="radio" name="feature" value="currentFile" id="currentFile" onChange={() => {}} />
+              <input className="custom-control-input" type="radio" name="feature" value="currentFile" id="currentFile" onChange={async () => {
+                const result = await props.addContextFiles!('remixAI', 'setContextFiles', { context: 'currentFile' })
+                promptDispatch({ type: 'CURRENT_FILE', payload: {
+                  file: result, selection: 'currentFile', selectContext: !promptState.selectContext
+                } })
+              }} checked={promptState.currentSelection === 'currentFile'} />
               <label className="form-check-label custom-control-label" htmlFor="currentFile" data-id="currentFile-context-option">
                 {/* <FormattedMessage id="filePanel.mintable" /> */}
                 Current file
@@ -84,7 +109,10 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
           </li>
           <li>
             <div className="d-flex ml-2 custom-control custom-radio">
-              <input className="custom-control-input" type="radio" name="feature" value="allOpenedFiles" id="allOpenedFiles" onChange={() => {}} />
+              <input className="custom-control-input" type="radio" name="feature" value="allOpenedFiles" id="allOpenedFiles" onChange={ async () => {
+                const result = await props.addContextFiles!('remixAI', 'setContextFiles', { context: 'openedFiles' })
+                promptDispatch({ type: 'ALL_OPENED_FILES', payload: { files: Object.keys(result), selection: 'allOpenedFiles', selectContext: !promptState.selectContext } })
+              }} checked={promptState.currentSelection === 'allOpenedFiles'} />
               <label className="form-check-label custom-control-label" htmlFor="allOpenedFiles" data-id="allOpenedFiles-context-option">
                 {/* <FormattedMessage id="filePanel.mintable" /> */}
                 All opened files
@@ -93,7 +121,11 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
           </li>
           <li>
             <div className="d-flex ml-2 custom-control custom-radio">
-              <input className="custom-control-input" type="radio" name="workspace-context" value="workspace" id="workspace" onChange={() => {}} />
+              <input className="custom-control-input" type="radio" name="workspace-context"
+                value={promptState.currentSelection} id="workspace" onChange={ async () => {
+                  const result = await props.addContextFiles!('remixAI', 'setContextFiles', { context: 'workspace' })
+                  promptDispatch({ type: 'WORKSPACE', payload: { files: '@workspace', selection: 'workspace', selectContext: !promptState.selectContext } })
+                }} checked={promptState.currentSelection === 'workspace'} />
               <label className="form-check-label custom-control-label" htmlFor="workspace" data-id="workspace-context-option">
                 {/* <FormattedMessage id="filePanel.mintable" /> */}
                 Workspace
@@ -140,11 +172,31 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
                   <CancelIconComp/>
               </button>
           )}
-          <div id="context-holder" className="d-flex flex-row text-white justify-content-start align-items-center flex-wrap text-success">
-            <span className="bg-info p-1 rounded">file1.sol <i className="fas fa-times"></i></span>
-            <span className="bg-info p-1 rounded ml-2">file2.sol <i className="fas fa-times"></i></span>
-            <span className="bg-info p-1 rounded ml-2">file3.sol <i className="fas fa-times"></i></span>
+          <RenderIf condition={promptState.files.length > 0}>
+          <div id="context-holder" className="d-flex gap-2 text-white justify-content-start align-items-center flex-wrap text-success py-3 border-warning overflow-y-scroll">
+            {Array.isArray(promptState.files) ? promptState.files.slice(0, 4).map((file: string, index: number) => {
+              return (
+                <span key={index} className="badge badge-info text-success p-1 rounded m-1 text-truncate">
+                  {file} <i className="fas fa-times" style={{ cursor: 'pointer' }} onClick={() => removeFile(file)}></i>
+                </span>
+              )
+            }) : (
+              <span className="badge badge-info text-success p-1 rounded m-1" onClick={() => removeFile(promptState.files as string)}>
+                {promptState.files} <i className="fas fa-times" style={{ cursor: 'pointer' }} onClick={() => removeFile(promptState.files as string)}></i>
+              </span>
+            )}
+            <RenderIf condition={promptState.files.length > 4 && promptState.files !== '@workspace'}>
+              <>
+                <span className="badge badge-info text-success p-1 rounded m-1">
+                  {promptState.files.length - 4} more files
+                </span>
+                <span style={{ cursor: 'pointer' }} className="badge badge-info text-success p-1 rounded m-1" onClick={() => removeAllFiles()}>
+                Remove all <i className="fas fa-times"></i>
+                </span>
+              </>
+            </RenderIf>
           </div>
+        </RenderIf>
         </div>
       </div>
   )

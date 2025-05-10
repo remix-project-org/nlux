@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {ComposerStatus} from '@shared/components/Composer/props'
 import {ReactElement} from 'react'
 
@@ -41,7 +42,7 @@ export type RemixComposerProps = {
     onCancel: () => void
 
     // Actions
-    addContextFiles?: (action: 'currentFile' | 'workspace'|'openedFiles') => Promise<void>
+    addContextFiles?: (pluginName: any, methodName: string, payload: { context: 'currentFile' | 'workspace'|'openedFiles' }) => Promise<any>
 
     // UI Overrides
     Loader: ReactElement
