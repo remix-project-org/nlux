@@ -42,7 +42,7 @@ export type RemixComposerProps = {
     onCancel: () => void
 
     // Actions
-    addContextFiles?: (pluginName: any, methodName: string, payload: { context: 'currentFile' | 'workspace'|'openedFiles' }) => Promise<any>
+    addContextFiles?: (pluginName: any, methodName: string, payload?: { context: 'currentFile' | 'workspace'|'openedFiles' | 'none', files?: Array<string> }) => Promise<any>
 
     // UI Overrides
     Loader: ReactElement

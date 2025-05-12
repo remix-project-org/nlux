@@ -65,7 +65,7 @@ export type AiChatProps<AiMsg = string> = {
      * Function to add context files to the chat.
      * This is used to provide file context to the AI model.
      */
-    addContextFiles?: (pluginName: any, methodName: string, payload: { context: 'currentFile' | 'workspace' | 'openedFiles' }) => Promise<any>
+    addContextFiles?: (pluginName: any, methodName: string, payload?: { context: 'currentFile' | 'workspace'|'openedFiles' | 'none', files?: Array<string> }) => Promise<any>
 
     /**
      * Options for the persona.

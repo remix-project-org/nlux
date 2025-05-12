@@ -228,7 +228,7 @@ export const AiChat: <AiMsg>(
                             onMarkdownStreamRendered={handleMarkdownStreamRendered}
                         />
                     </div>
-                    <div className="nlux-composer-container">
+                    <div id="remix-composer-container" className="nlux-composer-container">
                         {uiOverrides.Composer ? (
                             uiOverrides.Composer
                         ) : (

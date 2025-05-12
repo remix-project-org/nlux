@@ -40,5 +40,5 @@ export interface ComposerOptions {
 export interface RemixComposerOptions extends ComposerOptions {
     remixMethodList: Array<string>
     
-    addContextFiles: (pluginName: any, methodName: string, payload: { context: 'currentFile' | 'workspace'|'openedFiles' }) => Promise<any>
+    addContextFiles: (pluginName: any, methodName: string, payload: { context: 'currentFile' | 'workspace'|'openedFiles' | 'none', files?: Array<string> }) => Promise<any>
 }
