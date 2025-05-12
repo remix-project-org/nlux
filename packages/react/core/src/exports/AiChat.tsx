@@ -240,6 +240,7 @@ export const AiChat: <AiMsg>(
                                 onSubmit={handleSubmitPrompt}
                                 onCancel={cancelLastMessageRequest}
                                 addContextFiles={props.addContextFiles}
+                                trackSentiment={props.trackSentiment}
                                 Loader={uiOverrides.Loader}
                             />
                         )}

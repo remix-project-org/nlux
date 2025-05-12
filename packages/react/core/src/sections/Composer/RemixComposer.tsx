@@ -6,7 +6,7 @@ import {
     statusClassName as compComposerStatusClassName,
 } from '@shared/components/Composer/utils/applyNewStatusClassName'
 import {isSubmitShortcutKey} from '@shared/utils/isSubmitShortcutKey'
-import React,{ChangeEvent, KeyboardEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
+import React,{ChangeEvent, KeyboardEvent, useEffect, useMemo, useReducer, useRef} from 'react'
 import {CancelIconComp} from '../../components/CancelIcon/CancelIconComp'
 import {SendIconComp} from '../../components/SendIcon/SendIconComp'
 import {RemixComposerProps} from './props'

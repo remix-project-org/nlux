@@ -43,7 +43,7 @@ export type RemixComposerProps = {
 
     // Actions
     addContextFiles?: (pluginName: any, methodName: string, payload?: { context: 'currentFile' | 'workspace'|'openedFiles' | 'none', files?: Array<string> }) => Promise<any>
-
+    trackSentiment?: (sentiment: string) => void
     // UI Overrides
     Loader: ReactElement
 }
