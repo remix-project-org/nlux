@@ -7,7 +7,6 @@ import {chatItemsToChatSegment} from '@shared/utils/chat/chatItemsToChatSegment'
 import {getRootClassNames, getSystemColorScheme} from '@shared/utils/dom/getRootClassNames';
 import {warnOnce} from '@shared/utils/warn';
 import {forwardRef, ReactElement, useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ComposerComp} from '../sections/Composer/ComposerComp';
 import {ConversationComp} from '../sections/Conversation/ConversationComp';
 import {ImperativeConversationCompProps} from '../sections/Conversation/props';
 import {LaunchPad} from '../sections/LaunchPad/LaunchPad';
@@ -239,9 +238,10 @@ export const AiChat: <AiMsg>(
                                 onChange={handlePromptChange}
                                 onSubmit={handleSubmitPrompt}
                                 onCancel={cancelLastMessageRequest}
-                                addContextFiles={props.addContextFiles}
-                                trackSentiment={props.trackSentiment}
+                                addContextFiles={props.composerOptions?.addContextFiles}
+                                aiModal={props.composerOptions?.aiModal}
                                 Loader={uiOverrides.Loader}
+                                pluginMethodCall={props.composerOptions?.pluginMethodCall}
                             />
                         )}
                     </div>

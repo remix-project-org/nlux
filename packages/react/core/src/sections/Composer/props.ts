@@ -32,7 +32,7 @@ export type RemixComposerProps = {
     autoFocus?: boolean
     hideStopButton?: boolean
     remixAiMethodList?: Array<string>
-
+    aiModal?: any
     hasValidInput?: boolean
     submitShortcut?: 'Enter' | 'CommandEnter'
 
@@ -43,7 +43,10 @@ export type RemixComposerProps = {
 
     // Actions
     addContextFiles?: (pluginName: any, methodName: string, payload?: { context: 'currentFile' | 'workspace'|'openedFiles' | 'none', files?: Array<string> }) => Promise<any>
+    
     trackSentiment?: (sentiment: string) => void
+
+    pluginMethodCall?: (pluginName: string, methodName: string, payload?: any) => Promise<any>
     // UI Overrides
     Loader: ReactElement
 }

@@ -144,6 +144,10 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
             className="btn bg-dark btn-sm text-secondary"
             onClick={() => promptDispatch({ type: 'ADD_CONTEXT', payload: !promptState.selectContext })}
           >{"@ Add context"}</button>
+          <button
+            className="btn bg-dark ml-2 btn-sm text-secondary"
+            onClick={() => props.pluginMethodCall!('templateSelection', 'aiWorkspaceGenerate')}
+          >{"@ Generate Workspace"}</button>
         </div>
         <div className="mb-3 w-100">
           <textarea
