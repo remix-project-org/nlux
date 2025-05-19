@@ -56,5 +56,7 @@ export interface RemixComposerOptions extends ComposerOptions {
      * Function to call a plugin method.
      * This is used to call a plugin method.
      */
-    aiModal: any
+    aiModal?: any
+
+    pluginMethodCallArray?: []
 }
