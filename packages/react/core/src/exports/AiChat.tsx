@@ -242,6 +242,7 @@ export const AiChat: <AiMsg>(
                                 addContextFiles={props.addContextFiles}
                                 trackSentiment={props.trackSentiment}
                                 Loader={uiOverrides.Loader}
+                                pluginMethodCall={props.composerOptions?.pluginMethodCall}
                             />
                         )}
                     </div>
