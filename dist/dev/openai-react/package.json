@@ -1,0 +1,20 @@
+{
+  "name": "@nlux/openai-react",
+  "version": "0.0.0-latest",
+  "license": "MPL-2.0",
+  "description": "The OpenAI adapters for nlux React, the React JS library for building conversational AI interfaces.",
+  "repository": {
+    "directory": "packages/react/openai"
+  },
+  "dependencies": {
+    "@nlux/openai": "0.0.0-latest"
+  },
+  "peerDependencies": {
+    "@nlux/react": "0.0.0-latest",
+    "react": "^18"
+  },
+  "main": "index.js",
+  "types": "openai-react.d.ts",
+  "module": "esm/openai-react.js",
+  "browser": "umd/openai-react.js"
+}
