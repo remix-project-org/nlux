@@ -1,6 +1,6 @@
 {
   "name": "@nlux/markdown",
-  "version": "2.17.4",
+  "version": "2.17.8",
   "description": "A lightweight and fast markdown parser used by nlux that can be used to parse markdown text streams into DOM.",
   "keywords": [
     "nlux",

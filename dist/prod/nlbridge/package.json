@@ -1,6 +1,6 @@
 {
   "name": "@nlux/nlbridge",
-  "version": "2.17.4",
+  "version": "2.17.8",
   "description": "The nlbridge adapters for nlux, the javascript library for building conversational AI interfaces.",
   "keywords": [
     "nlux",
@@ -58,7 +58,7 @@
     "directory": "packages/js/nlbridge"
   },
   "dependencies": {
-    "@nlux/core": "2.17.4"
+    "@nlux/core": "2.17.8"
   },
   "peerDependencies": {},
   "main": "index.js",

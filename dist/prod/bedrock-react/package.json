@@ -1,6 +1,6 @@
 {
   "name": "@nlux/bedrock-react",
-  "version": "2.17.4",
+  "version": "2.17.8",
   "description": "The Bedrock adapters for nlux React, the React JS library for building conversational AI interfaces.",
   "keywords": [
     "nlux",
@@ -58,10 +58,10 @@
     "directory": "packages/react/bedrock"
   },
   "dependencies": {
-    "@nlux/bedrock": "2.17.4"
+    "@nlux/bedrock": "2.17.8"
   },
   "peerDependencies": {
-    "@nlux/react": "2.17.4",
+    "@nlux/react": "2.17.8",
     "react": "^18"
   },
   "main": "index.js",
