@@ -1,6 +1,6 @@
 {
   "name": "@nlux/openai",
-  "version": "2.17.4",
+  "version": "2.17.8",
   "description": "The OpenAI adapters for nlux, the javascript library for building conversational AI interfaces.",
   "keywords": [
     "nlux",
@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "openai": "^4",
-    "@nlux/core": "2.17.4"
+    "@nlux/core": "2.17.8"
   },
   "peerDependencies": {},
   "main": "index.js",

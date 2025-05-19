@@ -5278,14 +5278,24 @@ const RemixComposerComp = (props) => {
       ] })
     ] }),
     /* @__PURE__ */ jsxs("div", { id: "composer-textarea-holder", className: "bg-light d-flex flex-column w-100 p-3", children: [
-      /* @__PURE__ */ jsx("div", { className: "mb-3", children: /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn bg-dark btn-sm text-secondary",
-          onClick: () => promptDispatch({ type: "ADD_CONTEXT", payload: !promptState.selectContext }),
-          children: "@ Add context"
-        }
-      ) }),
+      /* @__PURE__ */ jsxs("div", { className: "mb-3", children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn bg-dark btn-sm text-secondary",
+            onClick: () => promptDispatch({ type: "ADD_CONTEXT", payload: !promptState.selectContext }),
+            children: "@ Add context"
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn bg-dark ml-2 btn-sm text-secondary",
+            onClick: () => props.pluginMethodCall("templateSelection", "aiWorkspaceGenerate"),
+            children: "@ Generate Workspace"
+          }
+        )
+      ] }),
       /* @__PURE__ */ jsxs("div", { className: "mb-3 w-100", children: [
         /* @__PURE__ */ jsx(
           "textarea",
@@ -5550,7 +5560,8 @@ const AiChat = function(props) {
           onCancel: cancelLastMessageRequest,
           addContextFiles: props.addContextFiles,
           trackSentiment: props.trackSentiment,
-          Loader: uiOverrides.Loader
+          Loader: uiOverrides.Loader,
+          pluginMethodCall: props.composerOptions?.pluginMethodCall
         }
       ) })
     ] })

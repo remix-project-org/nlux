@@ -277,6 +277,16 @@ interface RemixComposerOptions extends ComposerOptions {
         context: 'currentFile' | 'workspace' | 'openedFiles' | 'none';
         files?: Array<string>;
     }) => Promise<any>;
+    /**
+     * Function to call a plugin method.
+     * This is used to call a plugin method.
+     */
+    pluginMethodCall: (pluginName: string, methodName: string, payload?: any) => Promise<any>;
+    /**
+     * Function to call a plugin method.
+     * This is used to call a plugin method.
+     */
+    aiModal?: any;
 }
 
 /**

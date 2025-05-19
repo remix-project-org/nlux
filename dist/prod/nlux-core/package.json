@@ -1,6 +1,6 @@
 {
   "name": "@nlux/core",
-  "version": "2.17.4",
+  "version": "2.17.8",
   "description": "nlux is JavaScript and React library for building conversational AI interfaces, with support for OpenAI, Hugging Face, and more.",
   "keywords": [
     "nlux",
