@@ -1,6 +1,6 @@
 {
   "name": "@remixproject-nlux/monorepo",
-  "version": "latest",
+  "version": "v0.65.0",
   "description": "Remix IDE NLUX integration. Remix IDE is the leading IDE for building and deploying smart contracts on Ethereum. NLUX is a JavaScript and React library for building conversational AI experiences.",
   "author": "Remix IDE Project & Salmen Hichri",
   "license": "SEE LICENSE IN ROOT LICENSE FILE",
