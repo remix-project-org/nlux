@@ -1,0 +1,18 @@
+{
+  "name": "@nlux/bedrock",
+  "version": "0.0.0-latest",
+  "license": "MPL-2.0",
+  "description": "The Bedrock adapters for nlux, the javascript library for building conversational AI interfaces.",
+  "repository": {
+    "directory": "packages/js/bedrock"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "3",
+    "@nlux/core": "0.0.0-latest"
+  },
+  "peerDependencies": {},
+  "main": "index.js",
+  "types": "bedrock.d.ts",
+  "module": "esm/bedrock.js",
+  "browser": "umd/bedrock.js"
+}

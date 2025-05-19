@@ -1,7 +1,7 @@
 # Build output
 build/
 built/
-dist/
+#dist/
 dist-ssr/
 publish/
 coverage/

@@ -1,0 +1,17 @@
+{
+  "name": "@nlux/langchain",
+  "version": "0.0.0-latest",
+  "license": "MPL-2.0",
+  "description": "The LangChain adapters for nlux, the javascript library for building conversational AI interfaces.",
+  "repository": {
+    "directory": "packages/js/langchain"
+  },
+  "dependencies": {
+    "@nlux/core": "0.0.0-latest"
+  },
+  "peerDependencies": {},
+  "main": "index.js",
+  "types": "langchain.d.ts",
+  "module": "esm/langchain.js",
+  "browser": "umd/langchain.js"
+}
