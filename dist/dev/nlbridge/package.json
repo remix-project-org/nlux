@@ -1,0 +1,17 @@
+{
+  "name": "@nlux/nlbridge",
+  "version": "0.0.0-latest",
+  "license": "MPL-2.0",
+  "description": "The nlbridge adapters for nlux, the javascript library for building conversational AI interfaces.",
+  "repository": {
+    "directory": "packages/js/nlbridge"
+  },
+  "dependencies": {
+    "@nlux/core": "0.0.0-latest"
+  },
+  "peerDependencies": {},
+  "main": "index.js",
+  "types": "nlbridge.d.ts",
+  "module": "esm/nlbridge.js",
+  "browser": "umd/nlbridge.js"
+}

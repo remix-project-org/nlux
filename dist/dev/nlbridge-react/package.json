@@ -1,0 +1,20 @@
+{
+  "name": "@nlux/nlbridge-react",
+  "version": "0.0.0-latest",
+  "license": "MPL-2.0",
+  "description": "The nlbridge adapters for nlux React, the React JS library for building conversational AI interfaces.",
+  "repository": {
+    "directory": "packages/react/nlbridge"
+  },
+  "dependencies": {
+    "@nlux/nlbridge": "0.0.0-latest"
+  },
+  "peerDependencies": {
+    "@nlux/react": "0.0.0-latest",
+    "react": "^18"
+  },
+  "main": "index.js",
+  "types": "nlbridge-react.d.ts",
+  "module": "esm/nlbridge-react.js",
+  "browser": "umd/nlbridge-react.js"
+}
