@@ -5137,6 +5137,7 @@ const initialState = {
   files: []
 };
 const stripFileName = (file) => {
+  if (file.length === 0) return "";
   return file.split("/").pop();
 };
 function promptReducer(state, action) {
@@ -5180,6 +5181,46 @@ const submittingPromptStatuses = [
 function RenderIf({ condition, children }) {
   return condition ? children : null;
 }
+const openedAllFilesHelper = async (props, promptDispatch, promptState) => {
+  if (!props.pluginMethodCall) return;
+  const result = await props.pluginMethodCall("fileManager", "getOpenedFiles", {});
+  if (result !== null && result !== void 0) {
+    await props.pluginMethodCall("remixAI", "setContextFiles", { context: "openedFiles", files: Object.keys(result) });
+    promptDispatch({ type: "ALL_OPENED_FILES", payload: { files: Object.keys(result), selection: "allOpenedFiles", selectContext: !promptState.selectContext } });
+  } else {
+    props.pluginMethodCall("notification", "alert", {
+      id: "noOpenedFiles",
+      message: /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("p", { children: "No opened files found" }),
+        /* @__PURE__ */ jsx("p", { children: "Please open a file to add to the context" }),
+        /* @__PURE__ */ jsx("p", { children: "You can open a file by clicking on the file in the file explorer" })
+      ] })
+    });
+  }
+};
+const currentFileHelper = async (props, promptDispatch, promptState) => {
+  if (!props.pluginMethodCall) return;
+  const result = await props.pluginMethodCall("fileManager", "getCurrentFile", {});
+  if (result !== null && result !== void 0) {
+    await props.pluginMethodCall("remixAI", "setContextFiles", { context: "currentFile", files: [result] });
+    promptDispatch({
+      type: "CURRENT_FILE",
+      payload: {
+        file: result,
+        selection: "currentFile",
+        selectContext: !promptState.selectContext
+      }
+    });
+  } else {
+    props.pluginMethodCall("notification", "alert", {
+      id: "noFileSelected",
+      message: /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("p", { children: "No file selected" }),
+        /* @__PURE__ */ jsx("p", { children: "Please select a file file Explorer" })
+      ] })
+    });
+  }
+};
 const RemixComposerComp = (props) => {
   const compClassNameFromStats = statusClassName[props.status] || "";
   const className = `${statusClassName} ${compClassNameFromStats}`;
@@ -5191,13 +5232,19 @@ const RemixComposerComp = (props) => {
   const hideCancelButton = props.hideStopButton === true;
   const showCancelButton = !hideCancelButton && (submittingPromptStatuses.includes(props.status) || props.status === "waiting");
   const [promptState, promptDispatch] = useReducer(promptReducer, initialState);
+  const pluginMethodCall = props.pluginMethodCall;
+  console.log("what is in the props of this thing", { props, pluginMethodCall });
   const removeFile = async (file) => {
-    await props.addContextFiles("remixAI", "setContextFiles", { context: "none" });
-    promptDispatch({ type: "REMOVE_FILE", payload: file });
+    if (props.pluginMethodCall) {
+      await props.pluginMethodCall("remixAI", "setContextFiles", { context: "none", files: [file] });
+      promptDispatch({ type: "REMOVE_FILE", payload: file });
+    }
   };
   const removeAllFiles = async () => {
-    await props.addContextFiles("remixAI", "setContextFiles", { context: "none" });
-    promptDispatch({ type: "REMOVE_ALL_FILES" });
+    if (props.pluginMethodCall) {
+      await props.pluginMethodCall("remixAI", "setContextFiles", { context: "none", files: [] });
+      promptDispatch({ type: "REMOVE_ALL_FILES" });
+    }
   };
   const textareaRef = useRef(null);
   useEffect(() => {
@@ -5238,22 +5285,27 @@ const RemixComposerComp = (props) => {
       /* @__PURE__ */ jsx("div", { className: "text-uppercase mb-2 ml-2", children: "Add context files" }),
       /* @__PURE__ */ jsxs("ul", { className: "list-unstyled", children: [
         /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("div", { className: "d-flex ml-2 custom-control custom-radio", children: [
-          /* @__PURE__ */ jsx("input", { className: "custom-control-input", type: "radio", name: "feature", value: "currentFile", id: "currentFile", onChange: async () => {
-            await props.addContextFiles("remixAI", "setContextFiles", { context: "currentFile" });
-            const result = await props.addContextFiles("fileManager", "getCurrentFile", {});
-            promptDispatch({ type: "CURRENT_FILE", payload: {
-              file: result,
-              selection: "currentFile",
-              selectContext: !promptState.selectContext
-            } });
-          }, checked: promptState.currentSelection === "currentFile" }),
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              className: "custom-control-input",
+              type: "radio",
+              name: "feature",
+              value: "currentFile",
+              id: "currentFile",
+              onChange: () => {
+                console.log("changed current file");
+                currentFileHelper(props, promptDispatch, promptState);
+              },
+              checked: promptState.currentSelection === "currentFile"
+            }
+          ),
           /* @__PURE__ */ jsx("label", { className: "form-check-label custom-control-label", htmlFor: "currentFile", "data-id": "currentFile-context-option", children: "Current file" })
         ] }) }),
         /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("div", { className: "d-flex ml-2 custom-control custom-radio", children: [
-          /* @__PURE__ */ jsx("input", { className: "custom-control-input", type: "radio", name: "feature", value: "allOpenedFiles", id: "allOpenedFiles", onChange: async () => {
-            await props.addContextFiles("remixAI", "setContextFiles", { context: "openedFiles" });
-            const result = await props.addContextFiles("fileManager", "getOpenedFiles", {});
-            promptDispatch({ type: "ALL_OPENED_FILES", payload: { files: Object.keys(result), selection: "allOpenedFiles", selectContext: !promptState.selectContext } });
+          /* @__PURE__ */ jsx("input", { className: "custom-control-input", type: "radio", name: "feature", value: "allOpenedFiles", id: "allOpenedFiles", onChange: () => {
+            console.log("changed opened All Files");
+            openedAllFilesHelper(props, promptDispatch, promptState);
           }, checked: promptState.currentSelection === "allOpenedFiles" }),
           /* @__PURE__ */ jsx("label", { className: "form-check-label custom-control-label", htmlFor: "allOpenedFiles", "data-id": "allOpenedFiles-context-option", children: "All opened files" })
         ] }) }),
@@ -5267,7 +5319,8 @@ const RemixComposerComp = (props) => {
               value: promptState.currentSelection,
               id: "workspace",
               onChange: async () => {
-                await props.addContextFiles("remixAI", "setContextFiles", { context: "workspace" });
+                if (!props.pluginMethodCall) return;
+                await props.pluginMethodCall("remixAI", "setContextFiles", { context: "workspace" });
                 promptDispatch({ type: "WORKSPACE", payload: { files: "@workspace", selection: "workspace", selectContext: !promptState.selectContext } });
               },
               checked: promptState.currentSelection === "workspace"
@@ -5291,7 +5344,11 @@ const RemixComposerComp = (props) => {
           "button",
           {
             className: "btn bg-dark ml-2 btn-sm text-secondary",
-            onClick: () => props.pluginMethodCall("templateSelection", "aiWorkspaceGenerate"),
+            onClick: () => {
+              if (props.pluginMethodCall) {
+                props.pluginMethodCall("templateSelection", "aiWorkspaceGenerate", {});
+              }
+            },
             children: "@ Generate Workspace"
           }
         )
@@ -5558,8 +5615,6 @@ const AiChat = function(props) {
           onChange: handlePromptChange,
           onSubmit: handleSubmitPrompt,
           onCancel: cancelLastMessageRequest,
-          addContextFiles: props.addContextFiles,
-          trackSentiment: props.trackSentiment,
           Loader: uiOverrides.Loader,
           pluginMethodCall: props.composerOptions?.pluginMethodCall
         }

@@ -62,17 +62,6 @@ export type AiChatProps<AiMsg = string> = {
     composerOptions?: RemixComposerOptions
 
     /**
-     * Function to add context files to the chat.
-     * This is used to provide file context to the AI model.
-     */
-    addContextFiles?: (pluginName: any, methodName: string, payload?: { context: 'currentFile' | 'workspace'|'openedFiles' | 'none', files?: Array<string> }) => Promise<any>
-
-    /**
-     * Function to track sentiment on matomo.
-     */
-    trackSentiment?: (sentiment: string) => void
-
-    /**
      * Options for the persona.
      */
     personaOptions?: PersonaOptions;
