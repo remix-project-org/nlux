@@ -1,6 +1,6 @@
 {
   "name": "@nlux/themes",
-  "version": "2.17.8",
+  "version": "2.17.16",
   "description": "Themes and CSS files for nlux, the JavaScript and React library for building conversational AI interfaces.",
   "keywords": [
     "nlux",

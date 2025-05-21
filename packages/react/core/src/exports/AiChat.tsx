@@ -239,8 +239,6 @@ export const AiChat: <AiMsg>(
                                 onChange={handlePromptChange}
                                 onSubmit={handleSubmitPrompt}
                                 onCancel={cancelLastMessageRequest}
-                                addContextFiles={props.addContextFiles}
-                                trackSentiment={props.trackSentiment}
                                 Loader={uiOverrides.Loader}
                                 pluginMethodCall={props.composerOptions?.pluginMethodCall}
                             />

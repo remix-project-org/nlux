@@ -1,7 +1,7 @@
 import * as react from 'react';
 import { useEffect, JSX, RefObject, FC, ReactNode, ReactElement, DependencyList as DependencyList$1, ComponentClass, Context } from 'react';
 import { ConversationOptions as ConversationOptions$2, MessageOptions as MessageOptions$2, StandardChatAdapter as StandardChatAdapter$2, EventsConfig as EventsConfig$1, DisplayOptions as DisplayOptions$1, RemixComposerOptions, ContextItems, AiContext as AiContext$1, ContextItemDataType, ContextAdapter, ContextAdapterBuilder } from '@nlux/core';
-export { AiChatPropsInEvents, ComposerOptions, ConversationLayout, DisplayOptions, ErrorCallback, ErrorEventDetails, EventCallback, EventName, EventsConfig, HighlighterExtension, HistoryPayloadSize, IObserver, MessageReceivedCallback, MessageReceivedEventDetails, MessageRenderedCallback, MessageRenderedEventDetails, MessageSentCallback, MessageSentEventDetails, MessageStreamStartedCallback, MessageStreamStartedEventDetails, PreDestroyCallback, PreDestroyEventDetails, ReadyCallback, ReadyEventDetails, UpdatableAiChatProps } from '@nlux/core';
+export { AiChatPropsInEvents, ComposerOptions, ConversationLayout, DisplayOptions, ErrorCallback, ErrorEventDetails, EventCallback, EventName, EventsConfig, HighlighterExtension, HistoryPayloadSize, IObserver, MessageReceivedCallback, MessageReceivedEventDetails, MessageRenderedCallback, MessageRenderedEventDetails, MessageSentCallback, MessageSentEventDetails, MessageStreamStartedCallback, MessageStreamStartedEventDetails, PreDestroyCallback, PreDestroyEventDetails, ReadyCallback, ReadyEventDetails, RemixComposerOptions, UpdatableAiChatProps } from '@nlux/core';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 
 type UseEffectParams = Parameters<typeof useEffect>;
@@ -932,18 +932,6 @@ type AiChatProps<AiMsg = string> = {
      * Options for the composer.
      */
     composerOptions?: RemixComposerOptions;
-    /**
-     * Function to add context files to the chat.
-     * This is used to provide file context to the AI model.
-     */
-    addContextFiles?: (pluginName: any, methodName: string, payload?: {
-        context: 'currentFile' | 'workspace' | 'openedFiles' | 'none';
-        files?: Array<string>;
-    }) => Promise<any>;
-    /**
-     * Function to track sentiment on matomo.
-     */
-    trackSentiment?: (sentiment: string) => void;
     /**
      * Options for the persona.
      */

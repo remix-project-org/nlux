@@ -43,6 +43,7 @@ export const initialState: PromptState = {
 }
 
 export const stripFileName = (file: string) => {
+  if (file.length === 0) return ''
   return file.split('/').pop()
 }
 

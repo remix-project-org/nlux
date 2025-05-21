@@ -5,6 +5,7 @@ import useDeepCompareEffectHook from './hooks/useDeepCompareEffect';
 export type {
     DisplayOptions,
     ComposerOptions,
+    RemixComposerOptions,
     ConversationLayout,
     HistoryPayloadSize,
     HighlighterExtension,

@@ -6,11 +6,11 @@ import {
     statusClassName as compComposerStatusClassName,
 } from '@shared/components/Composer/utils/applyNewStatusClassName'
 import {isSubmitShortcutKey} from '@shared/utils/isSubmitShortcutKey'
-import React,{ChangeEvent, KeyboardEvent, useEffect, useMemo, useReducer, useRef} from 'react'
+import React,{ChangeEvent, Dispatch, KeyboardEvent, useEffect, useMemo, useReducer, useRef} from 'react'
 import {CancelIconComp} from '../../components/CancelIcon/CancelIconComp'
 import {SendIconComp} from '../../components/SendIcon/SendIconComp'
 import {RemixComposerProps} from './props'
-import { initialState, promptReducer } from './composer-reducers/reducer'
+import { initialState, PromptAction, promptReducer, PromptState } from './composer-reducers/reducer'
 
 const submittingPromptStatuses: Array<ComposerStatus> = [
     'submitting-prompt',
@@ -27,6 +27,49 @@ export function RenderIfNot({ condition, children }: { condition: boolean, child
   return condition ? null : children
 }
 
+export const openedAllFilesHelper = async (props: RemixComposerProps, promptDispatch: Dispatch<PromptAction>, promptState: PromptState) => {
+  if (!props.pluginMethodCall) return
+  const result = await props.pluginMethodCall('fileManager', 'getOpenedFiles', {} as any)
+  if (result !== null && result !== undefined) {
+    await props.pluginMethodCall('remixAI', 'setContextFiles', { context: 'openedFiles', files: Object.keys(result) })
+    promptDispatch({ type: 'ALL_OPENED_FILES', payload: { files: Object.keys(result), selection: 'allOpenedFiles', selectContext: !promptState.selectContext } })
+  } else {
+    props.pluginMethodCall('notification', 'alert', {
+      id: 'noOpenedFiles',
+      message: <div>
+        <p>No opened files found</p>
+        <p>Please open a file to add to the context</p>
+        <p>You can open a file by clicking on the file in the file explorer</p>
+      </div>
+    })
+  }
+}
+
+export const currentFileHelper = async (props: RemixComposerProps, promptDispatch: Dispatch<PromptAction>, promptState: PromptState) => {
+  if (!props.pluginMethodCall) return
+  const result = await props.pluginMethodCall('fileManager', 'getCurrentFile', {} as any)
+  if (result !== null && result !== undefined) {
+    await props.pluginMethodCall('remixAI', 'setContextFiles', { context: 'currentFile', files: [result] })
+    promptDispatch({
+      type: 'CURRENT_FILE',
+      payload: {
+        file: result,
+        selection: 'currentFile',
+        selectContext: !promptState.selectContext
+      }
+    })
+  } else {
+    props.pluginMethodCall('notification', 'alert', {
+      id: 'noFileSelected',
+      message: <div>
+        <p>No file selected</p>
+        <p>Please select a file file Explorer</p>
+      </div>
+    })
+  }
+
+}
+
 
 export const RemixComposerComp = (props: RemixComposerProps) => {
   const compClassNameFromStats = compComposerStatusClassName[props.status] || ''
@@ -41,13 +84,21 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
   
       const [promptState, promptDispatch] = useReducer(promptReducer, initialState)
 
+      const pluginMethodCall = props.pluginMethodCall
+
+      console.log('what is in the props of this thing', { props, pluginMethodCall })
+
       const removeFile = async (file: string) => {
-        await props.addContextFiles!('remixAI', 'setContextFiles', { context: 'none' })
-        promptDispatch({ type: 'REMOVE_FILE', payload: file })
+        if (pluginMethodCall) {
+          await pluginMethodCall('remixAI', 'setContextFiles', { context: 'none', files: [file] })
+          promptDispatch({ type: 'REMOVE_FILE', payload: file })
+        }
       }
       const removeAllFiles = async () => {
-        await props.addContextFiles!('remixAI', 'setContextFiles', { context: 'none' })
-        promptDispatch({ type: 'REMOVE_ALL_FILES' })
+        if (pluginMethodCall) {
+          await pluginMethodCall('remixAI', 'setContextFiles', { context: 'none', files: [] })
+          promptDispatch({ type: 'REMOVE_ALL_FILES' })
+        }
       }
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -97,28 +148,30 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
         <ul className="list-unstyled">
           <li>
             <div className="d-flex ml-2 custom-control custom-radio">
-              <input className="custom-control-input" type="radio" name="feature" value="currentFile" id="currentFile" onChange={async () => {
-                await props.addContextFiles!('remixAI', 'setContextFiles', { context: 'currentFile' })
-                const result = await props.addContextFiles!('fileManager', 'getCurrentFile', {} as any)
-                promptDispatch({ type: 'CURRENT_FILE', payload: {
-                  file: result, selection: 'currentFile', selectContext: !promptState.selectContext
-                } })
-              }} checked={promptState.currentSelection === 'currentFile'} />
+              <input
+                className="custom-control-input"
+                type="radio"
+                name="feature"
+                value="currentFile"
+                id="currentFile"
+                onChange={() => {
+                  console.log('changed current file')
+                  currentFileHelper(props!, promptDispatch, promptState)
+                }}
+                checked={promptState.currentSelection === 'currentFile'}
+              />
               <label className="form-check-label custom-control-label" htmlFor="currentFile" data-id="currentFile-context-option">
-                {/* <FormattedMessage id="filePanel.mintable" /> */}
                 Current file
               </label>
             </div>
           </li>
           <li>
             <div className="d-flex ml-2 custom-control custom-radio">
-              <input className="custom-control-input" type="radio" name="feature" value="allOpenedFiles" id="allOpenedFiles" onChange={ async () => {
-                await props.addContextFiles!('remixAI', 'setContextFiles', { context: 'openedFiles' })
-                const result = await props.addContextFiles!('fileManager', 'getOpenedFiles', {} as any)
-                promptDispatch({ type: 'ALL_OPENED_FILES', payload: { files: Object.keys(result), selection: 'allOpenedFiles', selectContext: !promptState.selectContext } })
+              <input className="custom-control-input" type="radio" name="feature" value="allOpenedFiles" id="allOpenedFiles" onChange={() => {
+                console.log('changed opened All Files')
+                openedAllFilesHelper(props!, promptDispatch, promptState)
               }} checked={promptState.currentSelection === 'allOpenedFiles'} />
               <label className="form-check-label custom-control-label" htmlFor="allOpenedFiles" data-id="allOpenedFiles-context-option">
-                {/* <FormattedMessage id="filePanel.mintable" /> */}
                 All opened files
               </label>
             </div>
@@ -127,11 +180,11 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
             <div className="d-flex ml-2 custom-control custom-radio">
               <input className="custom-control-input" type="radio" name="workspace-context"
                 value={promptState.currentSelection} id="workspace" onChange={ async () => {
-                  await props.addContextFiles!('remixAI', 'setContextFiles', { context: 'workspace' })
-                  promptDispatch({ type: 'WORKSPACE', payload: { files: '@workspace', selection: 'workspace', selectContext: !promptState.selectContext } })
+                  if (!props.pluginMethodCall) return
+                    await props.pluginMethodCall('remixAI', 'setContextFiles', { context: 'workspace' })
+                    promptDispatch({ type: 'WORKSPACE', payload: { files: '@workspace', selection: 'workspace', selectContext: !promptState.selectContext } })
                 }} checked={promptState.currentSelection === 'workspace'} />
               <label className="form-check-label custom-control-label" htmlFor="workspace" data-id="workspace-context-option">
-                {/* <FormattedMessage id="filePanel.mintable" /> */}
                 Workspace
               </label>
             </div>
@@ -146,7 +199,11 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
           >{"@ Add context"}</button>
           <button
             className="btn bg-dark ml-2 btn-sm text-secondary"
-            onClick={() => props.pluginMethodCall!('templateSelection', 'aiWorkspaceGenerate')}
+            onClick={() => {
+              if (props.pluginMethodCall) {
+                props.pluginMethodCall('templateSelection', 'aiWorkspaceGenerate', {})
+              }
+            }}
           >{"@ Generate Workspace"}</button>
         </div>
         <div className="mb-3 w-100">
