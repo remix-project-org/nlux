@@ -89,14 +89,14 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
       console.log('what is in the props of this thing', { props, pluginMethodCall })
 
       const removeFile = async (file: string) => {
-        if (props.pluginMethodCall) {
-          await props.pluginMethodCall('remixAI', 'setContextFiles', { context: 'none', files: [file] })
+        if (pluginMethodCall) {
+          await pluginMethodCall('remixAI', 'setContextFiles', { context: 'none', files: [file] })
           promptDispatch({ type: 'REMOVE_FILE', payload: file })
         }
       }
       const removeAllFiles = async () => {
-        if (props.pluginMethodCall) {
-          await props.pluginMethodCall('remixAI', 'setContextFiles', { context: 'none', files: [] })
+        if (pluginMethodCall) {
+          await pluginMethodCall('remixAI', 'setContextFiles', { context: 'none', files: [] })
           promptDispatch({ type: 'REMOVE_ALL_FILES' })
         }
       }
