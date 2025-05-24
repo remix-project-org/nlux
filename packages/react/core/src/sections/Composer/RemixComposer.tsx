@@ -31,7 +31,7 @@ export const openedAllFilesHelper = async (props: RemixComposerProps, promptDisp
   if (!props.pluginMethodCall) return
   const result = await props.pluginMethodCall('fileManager', 'getOpenedFiles', {} as any)
   if (result !== null && result !== undefined) {
-    await props.pluginMethodCall('remixAI', 'setContextFiles', { context: 'openedFiles', files: Object.keys(result) })
+    await props.pluginMethodCall('remixAI', 'setContextFiles', { context: 'openedFiles' })
     promptDispatch({ type: 'ALL_OPENED_FILES', payload: { files: Object.keys(result), selection: 'allOpenedFiles', selectContext: !promptState.selectContext } })
   } else {
     props.pluginMethodCall('notification', 'alert', {
@@ -49,7 +49,7 @@ export const currentFileHelper = async (props: RemixComposerProps, promptDispatc
   if (!props.pluginMethodCall) return
   const result = await props.pluginMethodCall('fileManager', 'getCurrentFile', {} as any)
   if (result !== null && result !== undefined) {
-    await props.pluginMethodCall('remixAI', 'setContextFiles', { context: 'currentFile', files: [result] })
+    await props.pluginMethodCall('remixAI', 'setContextFiles', { context: 'currentFile' })
     promptDispatch({
       type: 'CURRENT_FILE',
       payload: {
@@ -88,13 +88,13 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
 
       const removeFile = async (file: string) => {
         if (pluginMethodCall) {
-          await pluginMethodCall('remixAI', 'setContextFiles', { context: 'none', files: [file] })
+          await pluginMethodCall('remixAI', 'setContextFiles', { context: 'none' })
           promptDispatch({ type: 'REMOVE_FILE', payload: file })
         }
       }
       const removeAllFiles = async () => {
         if (pluginMethodCall) {
-          await pluginMethodCall('remixAI', 'setContextFiles', { context: 'none', files: [] })
+          await pluginMethodCall('remixAI', 'setContextFiles', { context: 'none' })
           promptDispatch({ type: 'REMOVE_ALL_FILES' })
         }
       }
@@ -242,7 +242,7 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
         </div>
           <RenderIf condition={promptState.files.length > 0}>
           <div id="context-holder" className="d-flex gap-2 text-white justify-content-start align-items-center flex-wrap text-success py-3 border-warning overflow-y-scroll">
-            {Array.isArray(promptState.files) ? promptState.files.slice(0, 4).map((file: string, index: number) => {
+            {Array.isArray(promptState.files) ? Array.from(new Set(promptState.files.slice(0, 4))).map((file: string, index: number) => {
               return (
                 <span key={index} className="badge badge-info text-success p-1 rounded m-1 text-truncate">
                   {file} <i className="fas fa-times" style={{ cursor: 'pointer' }} onClick={() => removeFile(file)}></i>

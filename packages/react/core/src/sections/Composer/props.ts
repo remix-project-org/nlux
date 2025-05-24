@@ -50,4 +50,4 @@ export type RemixComposerProps = {
     Loader: ReactElement
 }
 
-export type ContextFiles = { context: 'currentFile' | 'workspace'|'openedFiles' | 'none', files?: Array<string> }
+export type ContextFiles = { context: 'currentFile' | 'workspace'|'openedFiles' | 'none', files?: Array<{fileName: string, fileContent: string}> }
