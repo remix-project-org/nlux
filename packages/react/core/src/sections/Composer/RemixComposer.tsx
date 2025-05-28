@@ -207,6 +207,7 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
         <div className="mb-3 w-100" data-id="composer-textarea">
           <textarea
               tabIndex={0}
+              data-id="composer-textarea-input"
               ref={textareaRef}
               disabled={disableTextarea}
               placeholder={props.placeholder ?? 'Ask me anything, use button to add context...'}
