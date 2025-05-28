@@ -209,7 +209,7 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
               tabIndex={0}
               data-id="composer-textarea-input"
               ref={textareaRef}
-              disabled={disableTextarea}
+              disabled={disableTextarea || props.prompt?.length === 0}
               placeholder={props.placeholder ?? 'Ask me anything, use button to add context...'}
               value={props.prompt}
               onChange={handleChange}
