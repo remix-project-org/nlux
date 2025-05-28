@@ -5187,7 +5187,7 @@ If you're looking to render a React Server Components, please refer to docs.nlki
       if (!props.pluginMethodCall) return;
       const result = await props.pluginMethodCall("fileManager", "getOpenedFiles", {});
       if (result !== null && result !== void 0) {
-        await props.pluginMethodCall("remixAI", "setContextFiles", { context: "openedFiles", files: Object.keys(result) });
+        await props.pluginMethodCall("remixAI", "setContextFiles", { context: "openedFiles" });
         promptDispatch({ type: "ALL_OPENED_FILES", payload: { files: Object.keys(result), selection: "allOpenedFiles", selectContext: !promptState.selectContext } });
       } else {
         props.pluginMethodCall("notification", "alert", {
@@ -5204,7 +5204,7 @@ If you're looking to render a React Server Components, please refer to docs.nlki
       if (!props.pluginMethodCall) return;
       const result = await props.pluginMethodCall("fileManager", "getCurrentFile", {});
       if (result !== null && result !== void 0) {
-        await props.pluginMethodCall("remixAI", "setContextFiles", { context: "currentFile", files: [result] });
+        await props.pluginMethodCall("remixAI", "setContextFiles", { context: "currentFile" });
         promptDispatch({
           type: "CURRENT_FILE",
           payload: {
@@ -5235,16 +5235,15 @@ If you're looking to render a React Server Components, please refer to docs.nlki
       const showCancelButton = !hideCancelButton && (submittingPromptStatuses.includes(props.status) || props.status === "waiting");
       const [promptState, promptDispatch] = react.useReducer(promptReducer, initialState);
       const pluginMethodCall = props.pluginMethodCall;
-      console.log("what is in the props of this thing", { props, pluginMethodCall });
       const removeFile = async (file) => {
-        if (props.pluginMethodCall) {
-          await props.pluginMethodCall("remixAI", "setContextFiles", { context: "none", files: [file] });
+        if (pluginMethodCall) {
+          await pluginMethodCall("remixAI", "setContextFiles", { context: "none" });
           promptDispatch({ type: "REMOVE_FILE", payload: file });
         }
       };
       const removeAllFiles = async () => {
-        if (props.pluginMethodCall) {
-          await props.pluginMethodCall("remixAI", "setContextFiles", { context: "none", files: [] });
+        if (pluginMethodCall) {
+          await pluginMethodCall("remixAI", "setContextFiles", { context: "none" });
           promptDispatch({ type: "REMOVE_ALL_FILES" });
         }
       };
@@ -5355,7 +5354,7 @@ If you're looking to render a React Server Components, please refer to docs.nlki
               }
             )
           ] }),
-          /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "mb-3 w-100", children: [
+          /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "mb-3 w-100", "data-id": "composer-textarea", children: [
             /* @__PURE__ */ jsxRuntime.jsx(
               "textarea",
               {
@@ -5397,7 +5396,7 @@ If you're looking to render a React Server Components, please refer to docs.nlki
             ] })
           ] }),
           /* @__PURE__ */ jsxRuntime.jsx(RenderIf, { condition: promptState.files.length > 0, children: /* @__PURE__ */ jsxRuntime.jsxs("div", { id: "context-holder", className: "d-flex gap-2 text-white justify-content-start align-items-center flex-wrap text-success py-3 border-warning overflow-y-scroll", children: [
-            Array.isArray(promptState.files) ? promptState.files.slice(0, 4).map((file, index) => {
+            Array.isArray(promptState.files) ? Array.from(new Set(promptState.files.slice(0, 4))).map((file, index) => {
               return /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "badge badge-info text-success p-1 rounded m-1 text-truncate", children: [
                 file,
                 " ",
