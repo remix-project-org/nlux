@@ -60,31 +60,16 @@
         };
     };
 
-    var EndpointURLScheme;
-    (function (EndpointURLScheme) {
-        EndpointURLScheme["HTTP"] = "http";
-        EndpointURLScheme["HTTPS"] = "https";
-    })(EndpointURLScheme || (EndpointURLScheme = {}));
+    const SMITHY_CONTEXT_KEY$3 = "__smithy_context";
 
-    var AlgorithmId;
-    (function (AlgorithmId) {
-        AlgorithmId["MD5"] = "md5";
-        AlgorithmId["CRC32"] = "crc32";
-        AlgorithmId["CRC32C"] = "crc32c";
-        AlgorithmId["SHA1"] = "sha1";
-        AlgorithmId["SHA256"] = "sha256";
-    })(AlgorithmId || (AlgorithmId = {}));
-
-    const SMITHY_CONTEXT_KEY = "__smithy_context";
-
-    var IniSectionType;
+    var IniSectionType$1;
     (function (IniSectionType) {
         IniSectionType["PROFILE"] = "profile";
         IniSectionType["SSO_SESSION"] = "sso-session";
         IniSectionType["SERVICES"] = "services";
-    })(IniSectionType || (IniSectionType = {}));
+    })(IniSectionType$1 || (IniSectionType$1 = {}));
 
-    class HttpRequest {
+    let HttpRequest$2 = class HttpRequest {
         constructor(options) {
             this.method = options.method || "GET";
             this.hostname = options.hostname || "localhost";
@@ -108,7 +93,7 @@
                 headers: { ...request.headers },
             });
             if (cloned.query) {
-                cloned.query = cloneQuery(cloned.query);
+                cloned.query = cloneQuery$2(cloned.query);
             }
             return cloned;
         }
@@ -127,8 +112,8 @@
         clone() {
             return HttpRequest.clone(this);
         }
-    }
-    function cloneQuery(query) {
+    };
+    function cloneQuery$2(query) {
         return Object.keys(query).reduce((carry, paramName) => {
             const param = query[paramName];
             return {
@@ -138,7 +123,7 @@
         }, {});
     }
 
-    class HttpResponse {
+    let HttpResponse$2 = class HttpResponse {
         constructor(options) {
             this.statusCode = options.statusCode;
             this.reason = options.reason;
@@ -151,13 +136,13 @@
             const resp = response;
             return typeof resp.statusCode === "number" && typeof resp.headers === "object";
         }
-    }
+    };
 
     function resolveHostHeaderConfig(input) {
         return input;
     }
     const hostHeaderMiddleware = (options) => (next) => async (args) => {
-        if (!HttpRequest.isInstance(args.request))
+        if (!HttpRequest$2.isInstance(args.request))
             return next(args);
         const { request } = args;
         const { handlerProtocol = "" } = options.requestHandler.metadata || {};
@@ -234,7 +219,7 @@
     const ENV_TRACE_ID = "_X_AMZN_TRACE_ID";
     const recursionDetectionMiddleware = (options) => (next) => async (args) => {
         const { request } = args;
-        if (!HttpRequest.isInstance(request) || options.runtime !== "node") {
+        if (!HttpRequest$2.isInstance(request) || options.runtime !== "node") {
             return next(args);
         }
         const traceIdHeader = Object.keys(request.headers ?? {}).find((h) => h.toLowerCase() === TRACE_ID_HEADER_NAME.toLowerCase()) ??
@@ -266,14 +251,9 @@
         },
     });
 
-    const getSmithyContext = (context) => context[SMITHY_CONTEXT_KEY] || (context[SMITHY_CONTEXT_KEY] = {});
+    const SMITHY_CONTEXT_KEY$2 = "__smithy_context";
 
-    const normalizeProvider$1 = (input) => {
-        if (typeof input === "function")
-            return input;
-        const promisified = Promise.resolve(input);
-        return () => promisified;
-    };
+    const getSmithyContext$2 = (context) => context[SMITHY_CONTEXT_KEY$2] || (context[SMITHY_CONTEXT_KEY$2] = {});
 
     const resolveAuthOptions = (candidateAuthOptions, authSchemePreference) => {
         if (!authSchemePreference || authSchemePreference.length === 0) {
@@ -308,7 +288,7 @@
         const authSchemePreference = config.authSchemePreference ? await config.authSchemePreference() : [];
         const resolvedOptions = resolveAuthOptions(options, authSchemePreference);
         const authSchemes = convertHttpAuthSchemesToMap(config.httpAuthSchemes);
-        const smithyContext = getSmithyContext(context);
+        const smithyContext = getSmithyContext$2(context);
         const failureReasons = [];
         for (const option of resolvedOptions) {
             const scheme = authSchemes.get(option.schemeId);
@@ -354,6 +334,21 @@
         },
     });
 
+    let HttpResponse$1 = class HttpResponse {
+        constructor(options) {
+            this.statusCode = options.statusCode;
+            this.reason = options.reason;
+            this.headers = options.headers || {};
+            this.body = options.body;
+        }
+        static isInstance(response) {
+            if (!response)
+                return false;
+            const resp = response;
+            return typeof resp.statusCode === "number" && typeof resp.headers === "object";
+        }
+    };
+
     const deserializerMiddleware = (options, deserializer) => (next, context) => async (args) => {
         const { response } = await next(args);
         try {
@@ -385,15 +380,35 @@
                         error.$response.body = error.$responseBodyText;
                     }
                 }
+                try {
+                    if (HttpResponse$1.isInstance(response)) {
+                        const { headers = {} } = response;
+                        const headerEntries = Object.entries(headers);
+                        error.$metadata = {
+                            httpStatusCode: response.statusCode,
+                            requestId: findHeader(/^x-[\w-]+-request-?id$/, headerEntries),
+                            extendedRequestId: findHeader(/^x-[\w-]+-id-2$/, headerEntries),
+                            cfId: findHeader(/^x-[\w-]+-cf-id$/, headerEntries),
+                        };
+                    }
+                }
+                catch (e) {
+                }
             }
             throw error;
         }
     };
+    const findHeader = (pattern, headers) => {
+        return (headers.find(([k]) => {
+            return k.match(pattern);
+        }) || [void 0, void 1])[1];
+    };
 
     const serializerMiddleware = (options, serializer) => (next, context) => async (args) => {
-        const endpoint = context.endpointV2?.url && options.urlParser
-            ? async () => options.urlParser(context.endpointV2.url)
-            : options.endpoint;
+        const endpointConfig = options;
+        const endpoint = context.endpointV2?.url && endpointConfig.urlParser
+            ? async () => endpointConfig.urlParser(context.endpointV2.url)
+            : endpointConfig.endpoint;
         if (!endpoint) {
             throw new Error("No valid endpoint provider available.");
         }
@@ -425,15 +440,69 @@
         };
     }
 
+    let HttpRequest$1 = class HttpRequest {
+        constructor(options) {
+            this.method = options.method || "GET";
+            this.hostname = options.hostname || "localhost";
+            this.port = options.port;
+            this.query = options.query || {};
+            this.headers = options.headers || {};
+            this.body = options.body;
+            this.protocol = options.protocol
+                ? options.protocol.slice(-1) !== ":"
+                    ? `${options.protocol}:`
+                    : options.protocol
+                : "https:";
+            this.path = options.path ? (options.path.charAt(0) !== "/" ? `/${options.path}` : options.path) : "/";
+            this.username = options.username;
+            this.password = options.password;
+            this.fragment = options.fragment;
+        }
+        static clone(request) {
+            const cloned = new HttpRequest({
+                ...request,
+                headers: { ...request.headers },
+            });
+            if (cloned.query) {
+                cloned.query = cloneQuery$1(cloned.query);
+            }
+            return cloned;
+        }
+        static isInstance(request) {
+            if (!request) {
+                return false;
+            }
+            const req = request;
+            return ("method" in req &&
+                "protocol" in req &&
+                "hostname" in req &&
+                "path" in req &&
+                typeof req["query"] === "object" &&
+                typeof req["headers"] === "object");
+        }
+        clone() {
+            return HttpRequest.clone(this);
+        }
+    };
+    function cloneQuery$1(query) {
+        return Object.keys(query).reduce((carry, paramName) => {
+            const param = query[paramName];
+            return {
+                ...carry,
+                [paramName]: Array.isArray(param) ? [...param] : param,
+            };
+        }, {});
+    }
+
     const defaultErrorHandler = (signingProperties) => (error) => {
         throw error;
     };
     const defaultSuccessHandler = (httpResponse, signingProperties) => { };
     const httpSigningMiddleware = (config) => (next, context) => async (args) => {
-        if (!HttpRequest.isInstance(args.request)) {
+        if (!HttpRequest$1.isInstance(args.request)) {
             return next(args);
         }
-        const smithyContext = getSmithyContext(context);
+        const smithyContext = getSmithyContext$2(context);
         const scheme = smithyContext.selectedHttpAuthScheme;
         if (!scheme) {
             throw new Error(`No HttpAuthScheme was selected: unable to sign request`);
@@ -462,7 +531,7 @@
         },
     });
 
-    const normalizeProvider = (input) => {
+    const normalizeProvider$4 = (input) => {
         if (typeof input === "function")
             return input;
         const promisified = Promise.resolve(input);
@@ -536,799 +605,8 @@
         return fromArrayBuffer(input.buffer, input.byteOffset, input.byteLength).toString("base64");
     };
 
-    function transformToString(payload, encoding = "utf-8") {
-        if (encoding === "base64") {
-            return toBase64(payload);
-        }
-        return toUtf8(payload);
-    }
-    function transformFromString(str, encoding) {
-        if (encoding === "base64") {
-            return Uint8ArrayBlobAdapter.mutate(fromBase64(str));
-        }
-        return Uint8ArrayBlobAdapter.mutate(fromUtf8(str));
-    }
-
-    class Uint8ArrayBlobAdapter extends Uint8Array {
-        static fromString(source, encoding = "utf-8") {
-            switch (typeof source) {
-                case "string":
-                    return transformFromString(source, encoding);
-                default:
-                    throw new Error(`Unsupported conversion from ${typeof source} to Uint8ArrayBlobAdapter.`);
-            }
-        }
-        static mutate(source) {
-            Object.setPrototypeOf(source, Uint8ArrayBlobAdapter.prototype);
-            return source;
-        }
-        transformToString(encoding = "utf-8") {
-            return transformToString(this, encoding);
-        }
-    }
-
-    const isReadableStream = (stream) => typeof ReadableStream === "function" &&
-        (stream?.constructor?.name === ReadableStream.name || stream instanceof ReadableStream);
-
     const escapeUri = (uri) => encodeURIComponent(uri).replace(/[!'()*]/g, hexEncode);
     const hexEncode = (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`;
-
-    function buildQueryString(query) {
-        const parts = [];
-        for (let key of Object.keys(query).sort()) {
-            const value = query[key];
-            key = escapeUri(key);
-            if (Array.isArray(value)) {
-                for (let i = 0, iLen = value.length; i < iLen; i++) {
-                    parts.push(`${key}=${escapeUri(value[i])}`);
-                }
-            }
-            else {
-                let qsEntry = key;
-                if (value || typeof value === "string") {
-                    qsEntry += `=${escapeUri(value)}`;
-                }
-                parts.push(qsEntry);
-            }
-        }
-        return parts.join("&");
-    }
-
-    const NODEJS_TIMEOUT_ERROR_CODES$1 = ["ECONNRESET", "EPIPE", "ETIMEDOUT"];
-
-    const getTransformedHeaders = (headers) => {
-        const transformedHeaders = {};
-        for (const name of Object.keys(headers)) {
-            const headerValues = headers[name];
-            transformedHeaders[name] = Array.isArray(headerValues) ? headerValues.join(",") : headerValues;
-        }
-        return transformedHeaders;
-    };
-
-    const timing = {
-        setTimeout: (cb, ms) => setTimeout(cb, ms),
-        clearTimeout: (timeoutId) => clearTimeout(timeoutId),
-    };
-
-    const DEFER_EVENT_LISTENER_TIME$2 = 1000;
-    const setConnectionTimeout = (request, reject, timeoutInMs = 0) => {
-        if (!timeoutInMs) {
-            return -1;
-        }
-        const registerTimeout = (offset) => {
-            const timeoutId = timing.setTimeout(() => {
-                request.destroy();
-                reject(Object.assign(new Error(`Socket timed out without establishing a connection within ${timeoutInMs} ms`), {
-                    name: "TimeoutError",
-                }));
-            }, timeoutInMs - offset);
-            const doWithSocket = (socket) => {
-                if (socket?.connecting) {
-                    socket.on("connect", () => {
-                        timing.clearTimeout(timeoutId);
-                    });
-                }
-                else {
-                    timing.clearTimeout(timeoutId);
-                }
-            };
-            if (request.socket) {
-                doWithSocket(request.socket);
-            }
-            else {
-                request.on("socket", doWithSocket);
-            }
-        };
-        if (timeoutInMs < 2000) {
-            registerTimeout(0);
-            return 0;
-        }
-        return timing.setTimeout(registerTimeout.bind(null, DEFER_EVENT_LISTENER_TIME$2), DEFER_EVENT_LISTENER_TIME$2);
-    };
-
-    const DEFER_EVENT_LISTENER_TIME$1 = 3000;
-    const setSocketKeepAlive = (request, { keepAlive, keepAliveMsecs }, deferTimeMs = DEFER_EVENT_LISTENER_TIME$1) => {
-        if (keepAlive !== true) {
-            return -1;
-        }
-        const registerListener = () => {
-            if (request.socket) {
-                request.socket.setKeepAlive(keepAlive, keepAliveMsecs || 0);
-            }
-            else {
-                request.on("socket", (socket) => {
-                    socket.setKeepAlive(keepAlive, keepAliveMsecs || 0);
-                });
-            }
-        };
-        if (deferTimeMs === 0) {
-            registerListener();
-            return 0;
-        }
-        return timing.setTimeout(registerListener, deferTimeMs);
-    };
-
-    const DEFER_EVENT_LISTENER_TIME = 3000;
-    const setSocketTimeout = (request, reject, timeoutInMs = DEFAULT_REQUEST_TIMEOUT) => {
-        const registerTimeout = (offset) => {
-            const timeout = timeoutInMs - offset;
-            const onTimeout = () => {
-                request.destroy();
-                reject(Object.assign(new Error(`Connection timed out after ${timeoutInMs} ms`), { name: "TimeoutError" }));
-            };
-            if (request.socket) {
-                request.socket.setTimeout(timeout, onTimeout);
-                request.on("close", () => request.socket?.removeListener("timeout", onTimeout));
-            }
-            else {
-                request.setTimeout(timeout, onTimeout);
-            }
-        };
-        if (0 < timeoutInMs && timeoutInMs < 6000) {
-            registerTimeout(0);
-            return 0;
-        }
-        return timing.setTimeout(registerTimeout.bind(null, timeoutInMs === 0 ? 0 : DEFER_EVENT_LISTENER_TIME), DEFER_EVENT_LISTENER_TIME);
-    };
-
-    const MIN_WAIT_TIME = 6000;
-    async function writeRequestBody(httpRequest, request, maxContinueTimeoutMs = MIN_WAIT_TIME) {
-        const headers = request.headers ?? {};
-        const expect = headers["Expect"] || headers["expect"];
-        let timeoutId = -1;
-        let sendBody = true;
-        if (expect === "100-continue") {
-            sendBody = await Promise.race([
-                new Promise((resolve) => {
-                    timeoutId = Number(timing.setTimeout(() => resolve(true), Math.max(MIN_WAIT_TIME, maxContinueTimeoutMs)));
-                }),
-                new Promise((resolve) => {
-                    httpRequest.on("continue", () => {
-                        timing.clearTimeout(timeoutId);
-                        resolve(true);
-                    });
-                    httpRequest.on("response", () => {
-                        timing.clearTimeout(timeoutId);
-                        resolve(false);
-                    });
-                    httpRequest.on("error", () => {
-                        timing.clearTimeout(timeoutId);
-                        resolve(false);
-                    });
-                }),
-            ]);
-        }
-        if (sendBody) {
-            writeBody(httpRequest, request.body);
-        }
-    }
-    function writeBody(httpRequest, body) {
-        if (body instanceof stream.Readable) {
-            body.pipe(httpRequest);
-            return;
-        }
-        if (body) {
-            if (Buffer.isBuffer(body) || typeof body === "string") {
-                httpRequest.end(body);
-                return;
-            }
-            const uint8 = body;
-            if (typeof uint8 === "object" &&
-                uint8.buffer &&
-                typeof uint8.byteOffset === "number" &&
-                typeof uint8.byteLength === "number") {
-                httpRequest.end(Buffer.from(uint8.buffer, uint8.byteOffset, uint8.byteLength));
-                return;
-            }
-            httpRequest.end(Buffer.from(body));
-            return;
-        }
-        httpRequest.end();
-    }
-
-    const DEFAULT_REQUEST_TIMEOUT = 0;
-    class NodeHttpHandler {
-        static create(instanceOrOptions) {
-            if (typeof instanceOrOptions?.handle === "function") {
-                return instanceOrOptions;
-            }
-            return new NodeHttpHandler(instanceOrOptions);
-        }
-        static checkSocketUsage(agent, socketWarningTimestamp, logger = console) {
-            const { sockets, requests, maxSockets } = agent;
-            if (typeof maxSockets !== "number" || maxSockets === Infinity) {
-                return socketWarningTimestamp;
-            }
-            const interval = 15000;
-            if (Date.now() - interval < socketWarningTimestamp) {
-                return socketWarningTimestamp;
-            }
-            if (sockets && requests) {
-                for (const origin in sockets) {
-                    const socketsInUse = sockets[origin]?.length ?? 0;
-                    const requestsEnqueued = requests[origin]?.length ?? 0;
-                    if (socketsInUse >= maxSockets && requestsEnqueued >= 2 * maxSockets) {
-                        logger?.warn?.(`@smithy/node-http-handler:WARN - socket usage at capacity=${socketsInUse} and ${requestsEnqueued} additional requests are enqueued.
-See https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/node-configuring-maxsockets.html
-or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler config.`);
-                        return Date.now();
-                    }
-                }
-            }
-            return socketWarningTimestamp;
-        }
-        constructor(options) {
-            this.socketWarningTimestamp = 0;
-            this.metadata = { handlerProtocol: "http/1.1" };
-            this.configProvider = new Promise((resolve, reject) => {
-                if (typeof options === "function") {
-                    options()
-                        .then((_options) => {
-                        resolve(this.resolveDefaultConfig(_options));
-                    })
-                        .catch(reject);
-                }
-                else {
-                    resolve(this.resolveDefaultConfig(options));
-                }
-            });
-        }
-        resolveDefaultConfig(options) {
-            const { requestTimeout, connectionTimeout, socketTimeout, socketAcquisitionWarningTimeout, httpAgent, httpsAgent } = options || {};
-            const keepAlive = true;
-            const maxSockets = 50;
-            return {
-                connectionTimeout,
-                requestTimeout: requestTimeout ?? socketTimeout,
-                socketAcquisitionWarningTimeout,
-                httpAgent: (() => {
-                    if (httpAgent instanceof http.Agent || typeof httpAgent?.destroy === "function") {
-                        return httpAgent;
-                    }
-                    return new http.Agent({ keepAlive, maxSockets, ...httpAgent });
-                })(),
-                httpsAgent: (() => {
-                    if (httpsAgent instanceof https.Agent || typeof httpsAgent?.destroy === "function") {
-                        return httpsAgent;
-                    }
-                    return new https.Agent({ keepAlive, maxSockets, ...httpsAgent });
-                })(),
-                logger: console,
-            };
-        }
-        destroy() {
-            this.config?.httpAgent?.destroy();
-            this.config?.httpsAgent?.destroy();
-        }
-        async handle(request, { abortSignal } = {}) {
-            if (!this.config) {
-                this.config = await this.configProvider;
-            }
-            return new Promise((_resolve, _reject) => {
-                let writeRequestBodyPromise = undefined;
-                const timeouts = [];
-                const resolve = async (arg) => {
-                    await writeRequestBodyPromise;
-                    timeouts.forEach(timing.clearTimeout);
-                    _resolve(arg);
-                };
-                const reject = async (arg) => {
-                    await writeRequestBodyPromise;
-                    timeouts.forEach(timing.clearTimeout);
-                    _reject(arg);
-                };
-                if (!this.config) {
-                    throw new Error("Node HTTP request handler config is not resolved");
-                }
-                if (abortSignal?.aborted) {
-                    const abortError = new Error("Request aborted");
-                    abortError.name = "AbortError";
-                    reject(abortError);
-                    return;
-                }
-                const isSSL = request.protocol === "https:";
-                const agent = isSSL ? this.config.httpsAgent : this.config.httpAgent;
-                timeouts.push(timing.setTimeout(() => {
-                    this.socketWarningTimestamp = NodeHttpHandler.checkSocketUsage(agent, this.socketWarningTimestamp, this.config.logger);
-                }, this.config.socketAcquisitionWarningTimeout ??
-                    (this.config.requestTimeout ?? 2000) + (this.config.connectionTimeout ?? 1000)));
-                const queryString = buildQueryString(request.query || {});
-                let auth = undefined;
-                if (request.username != null || request.password != null) {
-                    const username = request.username ?? "";
-                    const password = request.password ?? "";
-                    auth = `${username}:${password}`;
-                }
-                let path = request.path;
-                if (queryString) {
-                    path += `?${queryString}`;
-                }
-                if (request.fragment) {
-                    path += `#${request.fragment}`;
-                }
-                let hostname = request.hostname ?? "";
-                if (hostname[0] === "[" && hostname.endsWith("]")) {
-                    hostname = request.hostname.slice(1, -1);
-                }
-                else {
-                    hostname = request.hostname;
-                }
-                const nodeHttpsOptions = {
-                    headers: request.headers,
-                    host: hostname,
-                    method: request.method,
-                    path,
-                    port: request.port,
-                    agent,
-                    auth,
-                };
-                const requestFunc = isSSL ? https.request : http.request;
-                const req = requestFunc(nodeHttpsOptions, (res) => {
-                    const httpResponse = new HttpResponse({
-                        statusCode: res.statusCode || -1,
-                        reason: res.statusMessage,
-                        headers: getTransformedHeaders(res.headers),
-                        body: res,
-                    });
-                    resolve({ response: httpResponse });
-                });
-                req.on("error", (err) => {
-                    if (NODEJS_TIMEOUT_ERROR_CODES$1.includes(err.code)) {
-                        reject(Object.assign(err, { name: "TimeoutError" }));
-                    }
-                    else {
-                        reject(err);
-                    }
-                });
-                if (abortSignal) {
-                    const onAbort = () => {
-                        req.destroy();
-                        const abortError = new Error("Request aborted");
-                        abortError.name = "AbortError";
-                        reject(abortError);
-                    };
-                    if (typeof abortSignal.addEventListener === "function") {
-                        const signal = abortSignal;
-                        signal.addEventListener("abort", onAbort, { once: true });
-                        req.once("close", () => signal.removeEventListener("abort", onAbort));
-                    }
-                    else {
-                        abortSignal.onabort = onAbort;
-                    }
-                }
-                timeouts.push(setConnectionTimeout(req, reject, this.config.connectionTimeout));
-                timeouts.push(setSocketTimeout(req, reject, this.config.requestTimeout));
-                const httpAgent = nodeHttpsOptions.agent;
-                if (typeof httpAgent === "object" && "keepAlive" in httpAgent) {
-                    timeouts.push(setSocketKeepAlive(req, {
-                        keepAlive: httpAgent.keepAlive,
-                        keepAliveMsecs: httpAgent.keepAliveMsecs,
-                    }));
-                }
-                writeRequestBodyPromise = writeRequestBody(req, request, this.config.requestTimeout).catch((e) => {
-                    timeouts.forEach(timing.clearTimeout);
-                    return _reject(e);
-                });
-            });
-        }
-        updateHttpClientConfig(key, value) {
-            this.config = undefined;
-            this.configProvider = this.configProvider.then((config) => {
-                return {
-                    ...config,
-                    [key]: value,
-                };
-            });
-        }
-        httpHandlerConfigs() {
-            return this.config ?? {};
-        }
-    }
-
-    class NodeHttp2ConnectionPool {
-        constructor(sessions) {
-            this.sessions = [];
-            this.sessions = sessions ?? [];
-        }
-        poll() {
-            if (this.sessions.length > 0) {
-                return this.sessions.shift();
-            }
-        }
-        offerLast(session) {
-            this.sessions.push(session);
-        }
-        contains(session) {
-            return this.sessions.includes(session);
-        }
-        remove(session) {
-            this.sessions = this.sessions.filter((s) => s !== session);
-        }
-        [Symbol.iterator]() {
-            return this.sessions[Symbol.iterator]();
-        }
-        destroy(connection) {
-            for (const session of this.sessions) {
-                if (session === connection) {
-                    if (!session.destroyed) {
-                        session.destroy();
-                    }
-                }
-            }
-        }
-    }
-
-    class NodeHttp2ConnectionManager {
-        constructor(config) {
-            this.sessionCache = new Map();
-            this.config = config;
-            if (this.config.maxConcurrency && this.config.maxConcurrency <= 0) {
-                throw new RangeError("maxConcurrency must be greater than zero.");
-            }
-        }
-        lease(requestContext, connectionConfiguration) {
-            const url = this.getUrlString(requestContext);
-            const existingPool = this.sessionCache.get(url);
-            if (existingPool) {
-                const existingSession = existingPool.poll();
-                if (existingSession && !this.config.disableConcurrency) {
-                    return existingSession;
-                }
-            }
-            const session = http2.connect(url);
-            if (this.config.maxConcurrency) {
-                session.settings({ maxConcurrentStreams: this.config.maxConcurrency }, (err) => {
-                    if (err) {
-                        throw new Error("Fail to set maxConcurrentStreams to " +
-                            this.config.maxConcurrency +
-                            "when creating new session for " +
-                            requestContext.destination.toString());
-                    }
-                });
-            }
-            session.unref();
-            const destroySessionCb = () => {
-                session.destroy();
-                this.deleteSession(url, session);
-            };
-            session.on("goaway", destroySessionCb);
-            session.on("error", destroySessionCb);
-            session.on("frameError", destroySessionCb);
-            session.on("close", () => this.deleteSession(url, session));
-            if (connectionConfiguration.requestTimeout) {
-                session.setTimeout(connectionConfiguration.requestTimeout, destroySessionCb);
-            }
-            const connectionPool = this.sessionCache.get(url) || new NodeHttp2ConnectionPool();
-            connectionPool.offerLast(session);
-            this.sessionCache.set(url, connectionPool);
-            return session;
-        }
-        deleteSession(authority, session) {
-            const existingConnectionPool = this.sessionCache.get(authority);
-            if (!existingConnectionPool) {
-                return;
-            }
-            if (!existingConnectionPool.contains(session)) {
-                return;
-            }
-            existingConnectionPool.remove(session);
-            this.sessionCache.set(authority, existingConnectionPool);
-        }
-        release(requestContext, session) {
-            const cacheKey = this.getUrlString(requestContext);
-            this.sessionCache.get(cacheKey)?.offerLast(session);
-        }
-        destroy() {
-            for (const [key, connectionPool] of this.sessionCache) {
-                for (const session of connectionPool) {
-                    if (!session.destroyed) {
-                        session.destroy();
-                    }
-                    connectionPool.remove(session);
-                }
-                this.sessionCache.delete(key);
-            }
-        }
-        setMaxConcurrentStreams(maxConcurrentStreams) {
-            if (maxConcurrentStreams && maxConcurrentStreams <= 0) {
-                throw new RangeError("maxConcurrentStreams must be greater than zero.");
-            }
-            this.config.maxConcurrency = maxConcurrentStreams;
-        }
-        setDisableConcurrentStreams(disableConcurrentStreams) {
-            this.config.disableConcurrency = disableConcurrentStreams;
-        }
-        getUrlString(request) {
-            return request.destination.toString();
-        }
-    }
-
-    class NodeHttp2Handler {
-        static create(instanceOrOptions) {
-            if (typeof instanceOrOptions?.handle === "function") {
-                return instanceOrOptions;
-            }
-            return new NodeHttp2Handler(instanceOrOptions);
-        }
-        constructor(options) {
-            this.metadata = { handlerProtocol: "h2" };
-            this.connectionManager = new NodeHttp2ConnectionManager({});
-            this.configProvider = new Promise((resolve, reject) => {
-                if (typeof options === "function") {
-                    options()
-                        .then((opts) => {
-                        resolve(opts || {});
-                    })
-                        .catch(reject);
-                }
-                else {
-                    resolve(options || {});
-                }
-            });
-        }
-        destroy() {
-            this.connectionManager.destroy();
-        }
-        async handle(request, { abortSignal } = {}) {
-            if (!this.config) {
-                this.config = await this.configProvider;
-                this.connectionManager.setDisableConcurrentStreams(this.config.disableConcurrentStreams || false);
-                if (this.config.maxConcurrentStreams) {
-                    this.connectionManager.setMaxConcurrentStreams(this.config.maxConcurrentStreams);
-                }
-            }
-            const { requestTimeout, disableConcurrentStreams } = this.config;
-            return new Promise((_resolve, _reject) => {
-                let fulfilled = false;
-                let writeRequestBodyPromise = undefined;
-                const resolve = async (arg) => {
-                    await writeRequestBodyPromise;
-                    _resolve(arg);
-                };
-                const reject = async (arg) => {
-                    await writeRequestBodyPromise;
-                    _reject(arg);
-                };
-                if (abortSignal?.aborted) {
-                    fulfilled = true;
-                    const abortError = new Error("Request aborted");
-                    abortError.name = "AbortError";
-                    reject(abortError);
-                    return;
-                }
-                const { hostname, method, port, protocol, query } = request;
-                let auth = "";
-                if (request.username != null || request.password != null) {
-                    const username = request.username ?? "";
-                    const password = request.password ?? "";
-                    auth = `${username}:${password}@`;
-                }
-                const authority = `${protocol}//${auth}${hostname}${port ? `:${port}` : ""}`;
-                const requestContext = { destination: new URL(authority) };
-                const session = this.connectionManager.lease(requestContext, {
-                    requestTimeout: this.config?.sessionTimeout,
-                    disableConcurrentStreams: disableConcurrentStreams || false,
-                });
-                const rejectWithDestroy = (err) => {
-                    if (disableConcurrentStreams) {
-                        this.destroySession(session);
-                    }
-                    fulfilled = true;
-                    reject(err);
-                };
-                const queryString = buildQueryString(query || {});
-                let path = request.path;
-                if (queryString) {
-                    path += `?${queryString}`;
-                }
-                if (request.fragment) {
-                    path += `#${request.fragment}`;
-                }
-                const req = session.request({
-                    ...request.headers,
-                    [http2.constants.HTTP2_HEADER_PATH]: path,
-                    [http2.constants.HTTP2_HEADER_METHOD]: method,
-                });
-                session.ref();
-                req.on("response", (headers) => {
-                    const httpResponse = new HttpResponse({
-                        statusCode: headers[":status"] || -1,
-                        headers: getTransformedHeaders(headers),
-                        body: req,
-                    });
-                    fulfilled = true;
-                    resolve({ response: httpResponse });
-                    if (disableConcurrentStreams) {
-                        session.close();
-                        this.connectionManager.deleteSession(authority, session);
-                    }
-                });
-                if (requestTimeout) {
-                    req.setTimeout(requestTimeout, () => {
-                        req.close();
-                        const timeoutError = new Error(`Stream timed out because of no activity for ${requestTimeout} ms`);
-                        timeoutError.name = "TimeoutError";
-                        rejectWithDestroy(timeoutError);
-                    });
-                }
-                if (abortSignal) {
-                    const onAbort = () => {
-                        req.close();
-                        const abortError = new Error("Request aborted");
-                        abortError.name = "AbortError";
-                        rejectWithDestroy(abortError);
-                    };
-                    if (typeof abortSignal.addEventListener === "function") {
-                        const signal = abortSignal;
-                        signal.addEventListener("abort", onAbort, { once: true });
-                        req.once("close", () => signal.removeEventListener("abort", onAbort));
-                    }
-                    else {
-                        abortSignal.onabort = onAbort;
-                    }
-                }
-                req.on("frameError", (type, code, id) => {
-                    rejectWithDestroy(new Error(`Frame type id ${type} in stream id ${id} has failed with code ${code}.`));
-                });
-                req.on("error", rejectWithDestroy);
-                req.on("aborted", () => {
-                    rejectWithDestroy(new Error(`HTTP/2 stream is abnormally aborted in mid-communication with result code ${req.rstCode}.`));
-                });
-                req.on("close", () => {
-                    session.unref();
-                    if (disableConcurrentStreams) {
-                        session.destroy();
-                    }
-                    if (!fulfilled) {
-                        rejectWithDestroy(new Error("Unexpected error: http2 request did not get a response"));
-                    }
-                });
-                writeRequestBodyPromise = writeRequestBody(req, request, requestTimeout);
-            });
-        }
-        updateHttpClientConfig(key, value) {
-            this.config = undefined;
-            this.configProvider = this.configProvider.then((config) => {
-                return {
-                    ...config,
-                    [key]: value,
-                };
-            });
-        }
-        httpHandlerConfigs() {
-            return this.config ?? {};
-        }
-        destroySession(session) {
-            if (!session.destroyed) {
-                session.destroy();
-            }
-        }
-    }
-
-    class Collector extends stream.Writable {
-        constructor() {
-            super(...arguments);
-            this.bufferedBytes = [];
-        }
-        _write(chunk, encoding, callback) {
-            this.bufferedBytes.push(chunk);
-            callback();
-        }
-    }
-
-    const streamCollector$1 = (stream) => {
-        if (isReadableStreamInstance(stream)) {
-            return collectReadableStream(stream);
-        }
-        return new Promise((resolve, reject) => {
-            const collector = new Collector();
-            stream.pipe(collector);
-            stream.on("error", (err) => {
-                collector.end();
-                reject(err);
-            });
-            collector.on("error", reject);
-            collector.on("finish", function () {
-                const bytes = new Uint8Array(Buffer.concat(this.bufferedBytes));
-                resolve(bytes);
-            });
-        });
-    };
-    const isReadableStreamInstance = (stream) => typeof ReadableStream === "function" && stream instanceof ReadableStream;
-    async function collectReadableStream(stream) {
-        const chunks = [];
-        const reader = stream.getReader();
-        let isDone = false;
-        let length = 0;
-        while (!isDone) {
-            const { done, value } = await reader.read();
-            if (value) {
-                chunks.push(value);
-                length += value.length;
-            }
-            isDone = done;
-        }
-        const collected = new Uint8Array(length);
-        let offset = 0;
-        for (const chunk of chunks) {
-            collected.set(chunk, offset);
-            offset += chunk.length;
-        }
-        return collected;
-    }
-
-    const streamCollector = async (stream) => {
-        if ((typeof Blob === "function" && stream instanceof Blob) || stream.constructor?.name === "Blob") {
-            if (Blob.prototype.arrayBuffer !== undefined) {
-                return new Uint8Array(await stream.arrayBuffer());
-            }
-            return collectBlob(stream);
-        }
-        return collectStream(stream);
-    };
-    async function collectBlob(blob) {
-        const base64 = await readToBase64(blob);
-        const arrayBuffer = fromBase64(base64);
-        return new Uint8Array(arrayBuffer);
-    }
-    async function collectStream(stream) {
-        const chunks = [];
-        const reader = stream.getReader();
-        let isDone = false;
-        let length = 0;
-        while (!isDone) {
-            const { done, value } = await reader.read();
-            if (value) {
-                chunks.push(value);
-                length += value.length;
-            }
-            isDone = done;
-        }
-        const collected = new Uint8Array(length);
-        let offset = 0;
-        for (const chunk of chunks) {
-            collected.set(chunk, offset);
-            offset += chunk.length;
-        }
-        return collected;
-    }
-    function readToBase64(blob) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                if (reader.readyState !== 2) {
-                    return reject(new Error("Reader aborted too early"));
-                }
-                const result = (reader.result ?? "");
-                const commaIndex = result.indexOf(",");
-                const dataOffset = commaIndex > -1 ? commaIndex + 1 : result.length;
-                resolve(result.substring(dataOffset));
-            };
-            reader.onabort = () => reject(new Error("Read aborted"));
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(blob);
-        });
-    }
 
     const SHORT_TO_HEX = {};
     const HEX_TO_SHORT = {};
@@ -1363,124 +641,6 @@ or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler conf
         }
         return out;
     }
-
-    const ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED$1 = "The stream has already been transformed.";
-    const sdkStreamMixin$1 = (stream) => {
-        if (!isBlobInstance(stream) && !isReadableStream(stream)) {
-            const name = stream?.__proto__?.constructor?.name || stream;
-            throw new Error(`Unexpected stream implementation, expect Blob or ReadableStream, got ${name}`);
-        }
-        let transformed = false;
-        const transformToByteArray = async () => {
-            if (transformed) {
-                throw new Error(ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED$1);
-            }
-            transformed = true;
-            return await streamCollector(stream);
-        };
-        const blobToWebStream = (blob) => {
-            if (typeof blob.stream !== "function") {
-                throw new Error("Cannot transform payload Blob to web stream. Please make sure the Blob.stream() is polyfilled.\n" +
-                    "If you are using React Native, this API is not yet supported, see: https://react-native.canny.io/feature-requests/p/fetch-streaming-body");
-            }
-            return blob.stream();
-        };
-        return Object.assign(stream, {
-            transformToByteArray: transformToByteArray,
-            transformToString: async (encoding) => {
-                const buf = await transformToByteArray();
-                if (encoding === "base64") {
-                    return toBase64(buf);
-                }
-                else if (encoding === "hex") {
-                    return toHex(buf);
-                }
-                else if (encoding === undefined || encoding === "utf8" || encoding === "utf-8") {
-                    return toUtf8(buf);
-                }
-                else if (typeof TextDecoder === "function") {
-                    return new TextDecoder(encoding).decode(buf);
-                }
-                else {
-                    throw new Error("TextDecoder is not available, please make sure polyfill is provided.");
-                }
-            },
-            transformToWebStream: () => {
-                if (transformed) {
-                    throw new Error(ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED$1);
-                }
-                transformed = true;
-                if (isBlobInstance(stream)) {
-                    return blobToWebStream(stream);
-                }
-                else if (isReadableStream(stream)) {
-                    return stream;
-                }
-                else {
-                    throw new Error(`Cannot transform payload to web stream, got ${stream}`);
-                }
-            },
-        });
-    };
-    const isBlobInstance = (stream) => typeof Blob === "function" && stream instanceof Blob;
-
-    const ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED = "The stream has already been transformed.";
-    const sdkStreamMixin = (stream$1) => {
-        if (!(stream$1 instanceof stream.Readable)) {
-            try {
-                return sdkStreamMixin$1(stream$1);
-            }
-            catch (e) {
-                const name = stream$1?.__proto__?.constructor?.name || stream$1;
-                throw new Error(`Unexpected stream implementation, expect Stream.Readable instance, got ${name}`);
-            }
-        }
-        let transformed = false;
-        const transformToByteArray = async () => {
-            if (transformed) {
-                throw new Error(ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED);
-            }
-            transformed = true;
-            return await streamCollector$1(stream$1);
-        };
-        return Object.assign(stream$1, {
-            transformToByteArray,
-            transformToString: async (encoding) => {
-                const buf = await transformToByteArray();
-                if (encoding === undefined || Buffer.isEncoding(encoding)) {
-                    return fromArrayBuffer(buf.buffer, buf.byteOffset, buf.byteLength).toString(encoding);
-                }
-                else {
-                    const decoder = new TextDecoder(encoding);
-                    return decoder.decode(buf);
-                }
-            },
-            transformToWebStream: () => {
-                if (transformed) {
-                    throw new Error(ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED);
-                }
-                if (stream$1.readableFlowing !== null) {
-                    throw new Error("The stream has been consumed by other callbacks.");
-                }
-                if (typeof stream.Readable.toWeb !== "function") {
-                    throw new Error("Readable.toWeb() is not supported. Please ensure a polyfill is available.");
-                }
-                transformed = true;
-                return stream.Readable.toWeb(stream$1);
-            },
-        });
-    };
-
-    const collectBody = async (streamBody = new Uint8Array(), context) => {
-        if (streamBody instanceof Uint8Array) {
-            return Uint8ArrayBlobAdapter.mutate(streamBody);
-        }
-        if (!streamBody) {
-            return Uint8ArrayBlobAdapter.mutate(new Uint8Array());
-        }
-        const fromContext = context.streamCollector(streamBody);
-        return Uint8ArrayBlobAdapter.mutate(await fromContext);
-    };
 
     function extendedEncodeURIComponent(str) {
         return encodeURIComponent(str).replace(/[!'()*]/g, function (c) {
@@ -1528,7 +688,7 @@ or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler conf
             for (const resolvePath of this.resolvePathStack) {
                 resolvePath(this.path);
             }
-            return new HttpRequest({
+            return new HttpRequest$1({
                 protocol,
                 hostname: this.hostname || hostname,
                 port,
@@ -1605,60 +765,6 @@ or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler conf
         }
     }
 
-    const createIsIdentityExpiredFunction = (expirationMs) => (identity) => doesIdentityRequireRefresh(identity) && identity.expiration.getTime() - Date.now() < expirationMs;
-    const EXPIRATION_MS = 300000;
-    const isIdentityExpired = createIsIdentityExpiredFunction(EXPIRATION_MS);
-    const doesIdentityRequireRefresh = (identity) => identity.expiration !== undefined;
-    const memoizeIdentityProvider = (provider, isExpired, requiresRefresh) => {
-        if (provider === undefined) {
-            return undefined;
-        }
-        const normalizedProvider = typeof provider !== "function" ? async () => Promise.resolve(provider) : provider;
-        let resolved;
-        let pending;
-        let hasResult;
-        let isConstant = false;
-        const coalesceProvider = async (options) => {
-            if (!pending) {
-                pending = normalizedProvider(options);
-            }
-            try {
-                resolved = await pending;
-                hasResult = true;
-                isConstant = false;
-            }
-            finally {
-                pending = undefined;
-            }
-            return resolved;
-        };
-        if (isExpired === undefined) {
-            return async (options) => {
-                if (!hasResult || options?.forceRefresh) {
-                    resolved = await coalesceProvider(options);
-                }
-                return resolved;
-            };
-        }
-        return async (options) => {
-            if (!hasResult || options?.forceRefresh) {
-                resolved = await coalesceProvider(options);
-            }
-            if (isConstant) {
-                return resolved;
-            }
-            if (!requiresRefresh(resolved)) {
-                isConstant = true;
-                return resolved;
-            }
-            if (isExpired(resolved)) {
-                await coalesceProvider(options);
-                return resolved;
-            }
-            return resolved;
-        };
-    };
-
     const DEFAULT_UA_APP_ID = undefined;
     function isValidUserAgentAppId(appId) {
         if (appId === undefined) {
@@ -1667,7 +773,7 @@ or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler conf
         return typeof appId === "string" && appId.length <= 50;
     }
     function resolveUserAgentConfig(input) {
-        const normalizedAppIdProvider = normalizeProvider(input.userAgentAppId ?? DEFAULT_UA_APP_ID);
+        const normalizedAppIdProvider = normalizeProvider$4(input.userAgentAppId ?? DEFAULT_UA_APP_ID);
         const { customUserAgent } = input;
         return Object.assign(input, {
             customUserAgent: typeof customUserAgent === "string" ? [[customUserAgent]] : customUserAgent,
@@ -1818,6 +924,12 @@ or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler conf
     const isSet = (value) => value != null;
 
     const not = (value) => !value;
+
+    var EndpointURLScheme;
+    (function (EndpointURLScheme) {
+        EndpointURLScheme["HTTP"] = "http";
+        EndpointURLScheme["HTTPS"] = "https";
+    })(EndpointURLScheme || (EndpointURLScheme = {}));
 
     const DEFAULT_PORTS = {
         [EndpointURLScheme.HTTP]: 80,
@@ -2527,7 +1639,7 @@ More information can be found at: https://a.co/74kJMmI`);
         context.__aws_sdk_context.features[feature] = value;
     }
 
-    const getDateHeader = (response) => HttpResponse.isInstance(response) ? response.headers?.date ?? response.headers?.Date : undefined;
+    const getDateHeader = (response) => HttpResponse$2.isInstance(response) ? response.headers?.date ?? response.headers?.Date : undefined;
 
     const getSkewCorrectedDate = (systemClockOffset) => new Date(Date.now() + systemClockOffset);
 
@@ -2566,7 +1678,7 @@ More information can be found at: https://a.co/74kJMmI`);
     };
     class AwsSdkSigV4Signer {
         async sign(httpRequest, identity, signingProperties) {
-            if (!HttpRequest.isInstance(httpRequest)) {
+            if (!HttpRequest$2.isInstance(httpRequest)) {
                 throw new Error("The request is not an instance of `HttpRequest` and cannot be signed");
             }
             const validatedProps = await validateSigningProperties(signingProperties);
@@ -2613,10 +1725,17 @@ More information can be found at: https://a.co/74kJMmI`);
 
     const getArrayForCommaSeparatedString = (str) => typeof str === "string" && str.length > 0 ? str.split(",").map((item) => item.trim()) : [];
 
+    const getBearerTokenEnvKey = (signingName) => `AWS_BEARER_TOKEN_${signingName.replace(/[\s-]/g, "_").toUpperCase()}`;
+
     const NODE_AUTH_SCHEME_PREFERENCE_ENV_KEY = "AWS_AUTH_SCHEME_PREFERENCE";
     const NODE_AUTH_SCHEME_PREFERENCE_CONFIG_KEY = "auth_scheme_preference";
     const NODE_AUTH_SCHEME_PREFERENCE_OPTIONS = {
-        environmentVariableSelector: (env) => {
+        environmentVariableSelector: (env, options) => {
+            if (options?.signingName) {
+                const bearerTokenKey = getBearerTokenEnvKey(options.signingName);
+                if (bearerTokenKey in env)
+                    return ["httpBearerAuth"];
+            }
             if (!(NODE_AUTH_SCHEME_PREFERENCE_ENV_KEY in env))
                 return undefined;
             return getArrayForCommaSeparatedString(env[NODE_AUTH_SCHEME_PREFERENCE_ENV_KEY]);
@@ -2629,7 +1748,110 @@ More information can be found at: https://a.co/74kJMmI`);
         default: [],
     };
 
-    class ProviderError extends Error {
+    const normalizeProvider$3 = (input) => {
+        if (typeof input === "function")
+            return input;
+        const promisified = Promise.resolve(input);
+        return () => promisified;
+    };
+
+    function transformToString(payload, encoding = "utf-8") {
+        if (encoding === "base64") {
+            return toBase64(payload);
+        }
+        return toUtf8(payload);
+    }
+    function transformFromString(str, encoding) {
+        if (encoding === "base64") {
+            return Uint8ArrayBlobAdapter.mutate(fromBase64(str));
+        }
+        return Uint8ArrayBlobAdapter.mutate(fromUtf8(str));
+    }
+
+    class Uint8ArrayBlobAdapter extends Uint8Array {
+        static fromString(source, encoding = "utf-8") {
+            switch (typeof source) {
+                case "string":
+                    return transformFromString(source, encoding);
+                default:
+                    throw new Error(`Unsupported conversion from ${typeof source} to Uint8ArrayBlobAdapter.`);
+            }
+        }
+        static mutate(source) {
+            Object.setPrototypeOf(source, Uint8ArrayBlobAdapter.prototype);
+            return source;
+        }
+        transformToString(encoding = "utf-8") {
+            return transformToString(this, encoding);
+        }
+    }
+
+    const collectBody = async (streamBody = new Uint8Array(), context) => {
+        if (streamBody instanceof Uint8Array) {
+            return Uint8ArrayBlobAdapter.mutate(streamBody);
+        }
+        if (!streamBody) {
+            return Uint8ArrayBlobAdapter.mutate(new Uint8Array());
+        }
+        const fromContext = context.streamCollector(streamBody);
+        return Uint8ArrayBlobAdapter.mutate(await fromContext);
+    };
+
+    const createIsIdentityExpiredFunction = (expirationMs) => (identity) => doesIdentityRequireRefresh(identity) && identity.expiration.getTime() - Date.now() < expirationMs;
+    const EXPIRATION_MS = 300000;
+    const isIdentityExpired = createIsIdentityExpiredFunction(EXPIRATION_MS);
+    const doesIdentityRequireRefresh = (identity) => identity.expiration !== undefined;
+    const memoizeIdentityProvider = (provider, isExpired, requiresRefresh) => {
+        if (provider === undefined) {
+            return undefined;
+        }
+        const normalizedProvider = typeof provider !== "function" ? async () => Promise.resolve(provider) : provider;
+        let resolved;
+        let pending;
+        let hasResult;
+        let isConstant = false;
+        const coalesceProvider = async (options) => {
+            if (!pending) {
+                pending = normalizedProvider(options);
+            }
+            try {
+                resolved = await pending;
+                hasResult = true;
+                isConstant = false;
+            }
+            finally {
+                pending = undefined;
+            }
+            return resolved;
+        };
+        if (isExpired === undefined) {
+            return async (options) => {
+                if (!hasResult || options?.forceRefresh) {
+                    resolved = await coalesceProvider(options);
+                }
+                return resolved;
+            };
+        }
+        return async (options) => {
+            if (!hasResult || options?.forceRefresh) {
+                resolved = await coalesceProvider(options);
+            }
+            if (isConstant) {
+                return resolved;
+            }
+            if (!requiresRefresh(resolved)) {
+                isConstant = true;
+                return resolved;
+            }
+            if (isExpired(resolved)) {
+                await coalesceProvider(options);
+                return resolved;
+            }
+            return resolved;
+        };
+    };
+
+    let ProviderError$2 = class ProviderError extends Error {
         constructor(message, options = true) {
             let logger;
             let tryNextLink = true;
@@ -2650,17 +1872,17 @@ More information can be found at: https://a.co/74kJMmI`);
         static from(error, options = true) {
             return Object.assign(new this(error.message, options), error);
         }
-    }
+    };
 
-    class CredentialsProviderError extends ProviderError {
+    let CredentialsProviderError$2 = class CredentialsProviderError extends ProviderError$2 {
         constructor(message, options = true) {
             super(message, options);
             this.name = "CredentialsProviderError";
             Object.setPrototypeOf(this, CredentialsProviderError.prototype);
         }
-    }
+    };
 
-    class TokenProviderError extends ProviderError {
+    class TokenProviderError extends ProviderError$2 {
         constructor(message, options = true) {
             super(message, options);
             this.name = "TokenProviderError";
@@ -2668,9 +1890,9 @@ More information can be found at: https://a.co/74kJMmI`);
         }
     }
 
-    const chain = (...providers) => async () => {
+    const chain$1 = (...providers) => async () => {
         if (providers.length === 0) {
-            throw new ProviderError("No providers in chain");
+            throw new ProviderError$2("No providers in chain");
         }
         let lastProviderError;
         for (const provider of providers) {
@@ -2689,9 +1911,7 @@ More information can be found at: https://a.co/74kJMmI`);
         throw lastProviderError;
     };
 
-    const fromStatic$1 = (staticValue) => () => Promise.resolve(staticValue);
-
-    const memoize = (provider, isExpired, requiresRefresh) => {
+    const memoize$2 = (provider, isExpired, requiresRefresh) => {
         let resolved;
         let pending;
         let hasResult;
@@ -2974,7 +2194,7 @@ More information can be found at: https://a.co/74kJMmI`);
     };
 
     const moveHeadersToQuery = (request, options = {}) => {
-        const { headers, query = {} } = HttpRequest.clone(request);
+        const { headers, query = {} } = HttpRequest$2.clone(request);
         for (const name of Object.keys(headers)) {
             const lname = name.toLowerCase();
             if ((lname.slice(0, 6) === "x-amz-" && !options.unhoistableHeaders?.has(lname)) ||
@@ -2991,13 +2211,22 @@ More information can be found at: https://a.co/74kJMmI`);
     };
 
     const prepareRequest = (request) => {
-        request = HttpRequest.clone(request);
+        request = HttpRequest$2.clone(request);
         for (const headerName of Object.keys(request.headers)) {
             if (GENERATED_HEADERS.indexOf(headerName.toLowerCase()) > -1) {
                 delete request.headers[headerName];
             }
         }
         return request;
+    };
+
+    const getSmithyContext$1 = (context) => context[SMITHY_CONTEXT_KEY$3] || (context[SMITHY_CONTEXT_KEY$3] = {});
+
+    const normalizeProvider$2 = (input) => {
+        if (typeof input === "function")
+            return input;
+        const promisified = Promise.resolve(input);
+        return () => promisified;
     };
 
     const getCanonicalQuery = ({ query = {} }) => {
@@ -3050,8 +2279,8 @@ More information can be found at: https://a.co/74kJMmI`);
             this.sha256 = sha256;
             this.uriEscapePath = uriEscapePath;
             this.applyChecksum = typeof applyChecksum === "boolean" ? applyChecksum : true;
-            this.regionProvider = normalizeProvider$1(region);
-            this.credentialProvider = normalizeProvider$1(credentials);
+            this.regionProvider = normalizeProvider$2(region);
+            this.credentialProvider = normalizeProvider$2(credentials);
         }
         createCanonicalRequest(request, canonicalHeaders, payloadHash) {
             const sortedHeaders = Object.keys(canonicalHeaders).sort();
@@ -3272,10 +2501,10 @@ ${toHex(hashedRequest)}`;
         const { signingEscapePath = true, systemClockOffset = config.systemClockOffset || 0, sha256, } = config;
         let signer;
         if (config.signer) {
-            signer = normalizeProvider(config.signer);
+            signer = normalizeProvider$3(config.signer);
         }
         else if (config.regionInfoProvider) {
-            signer = () => normalizeProvider(config.region)()
+            signer = () => normalizeProvider$3(config.region)()
                 .then(async (region) => [
                 (await config.regionInfoProvider(region, {
                     useFipsEndpoint: await config.useFipsEndpoint(),
@@ -3304,7 +2533,7 @@ ${toHex(hashedRequest)}`;
                 authScheme = Object.assign({}, {
                     name: "sigv4",
                     signingName: config.signingName || config.defaultSigningName,
-                    signingRegion: await normalizeProvider(config.region)(),
+                    signingRegion: await normalizeProvider$3(config.region)(),
                     properties: {},
                 }, authScheme);
                 const signingRegion = authScheme.signingRegion;
@@ -3342,7 +2571,7 @@ ${toHex(hashedRequest)}`;
         }
         else {
             if (credentialDefaultProvider) {
-                credentialsProvider = normalizeProvider(credentialDefaultProvider(Object.assign({}, config, {
+                credentialsProvider = normalizeProvider$3(credentialDefaultProvider(Object.assign({}, config, {
                     parentClientConfig: config,
                 })));
             }
@@ -3365,898 +2594,6 @@ ${toHex(hashedRequest)}`;
         return fn;
     }
 
-    const getAllAliases = (name, aliases) => {
-        const _aliases = [];
-        if (name) {
-            _aliases.push(name);
-        }
-        if (aliases) {
-            for (const alias of aliases) {
-                _aliases.push(alias);
-            }
-        }
-        return _aliases;
-    };
-    const getMiddlewareNameWithAliases = (name, aliases) => {
-        return `${name || "anonymous"}${aliases && aliases.length > 0 ? ` (a.k.a. ${aliases.join(",")})` : ""}`;
-    };
-    const constructStack = () => {
-        let absoluteEntries = [];
-        let relativeEntries = [];
-        let identifyOnResolve = false;
-        const entriesNameSet = new Set();
-        const sort = (entries) => entries.sort((a, b) => stepWeights[b.step] - stepWeights[a.step] ||
-            priorityWeights[b.priority || "normal"] - priorityWeights[a.priority || "normal"]);
-        const removeByName = (toRemove) => {
-            let isRemoved = false;
-            const filterCb = (entry) => {
-                const aliases = getAllAliases(entry.name, entry.aliases);
-                if (aliases.includes(toRemove)) {
-                    isRemoved = true;
-                    for (const alias of aliases) {
-                        entriesNameSet.delete(alias);
-                    }
-                    return false;
-                }
-                return true;
-            };
-            absoluteEntries = absoluteEntries.filter(filterCb);
-            relativeEntries = relativeEntries.filter(filterCb);
-            return isRemoved;
-        };
-        const removeByReference = (toRemove) => {
-            let isRemoved = false;
-            const filterCb = (entry) => {
-                if (entry.middleware === toRemove) {
-                    isRemoved = true;
-                    for (const alias of getAllAliases(entry.name, entry.aliases)) {
-                        entriesNameSet.delete(alias);
-                    }
-                    return false;
-                }
-                return true;
-            };
-            absoluteEntries = absoluteEntries.filter(filterCb);
-            relativeEntries = relativeEntries.filter(filterCb);
-            return isRemoved;
-        };
-        const cloneTo = (toStack) => {
-            absoluteEntries.forEach((entry) => {
-                toStack.add(entry.middleware, { ...entry });
-            });
-            relativeEntries.forEach((entry) => {
-                toStack.addRelativeTo(entry.middleware, { ...entry });
-            });
-            toStack.identifyOnResolve?.(stack.identifyOnResolve());
-            return toStack;
-        };
-        const expandRelativeMiddlewareList = (from) => {
-            const expandedMiddlewareList = [];
-            from.before.forEach((entry) => {
-                if (entry.before.length === 0 && entry.after.length === 0) {
-                    expandedMiddlewareList.push(entry);
-                }
-                else {
-                    expandedMiddlewareList.push(...expandRelativeMiddlewareList(entry));
-                }
-            });
-            expandedMiddlewareList.push(from);
-            from.after.reverse().forEach((entry) => {
-                if (entry.before.length === 0 && entry.after.length === 0) {
-                    expandedMiddlewareList.push(entry);
-                }
-                else {
-                    expandedMiddlewareList.push(...expandRelativeMiddlewareList(entry));
-                }
-            });
-            return expandedMiddlewareList;
-        };
-        const getMiddlewareList = (debug = false) => {
-            const normalizedAbsoluteEntries = [];
-            const normalizedRelativeEntries = [];
-            const normalizedEntriesNameMap = {};
-            absoluteEntries.forEach((entry) => {
-                const normalizedEntry = {
-                    ...entry,
-                    before: [],
-                    after: [],
-                };
-                for (const alias of getAllAliases(normalizedEntry.name, normalizedEntry.aliases)) {
-                    normalizedEntriesNameMap[alias] = normalizedEntry;
-                }
-                normalizedAbsoluteEntries.push(normalizedEntry);
-            });
-            relativeEntries.forEach((entry) => {
-                const normalizedEntry = {
-                    ...entry,
-                    before: [],
-                    after: [],
-                };
-                for (const alias of getAllAliases(normalizedEntry.name, normalizedEntry.aliases)) {
-                    normalizedEntriesNameMap[alias] = normalizedEntry;
-                }
-                normalizedRelativeEntries.push(normalizedEntry);
-            });
-            normalizedRelativeEntries.forEach((entry) => {
-                if (entry.toMiddleware) {
-                    const toMiddleware = normalizedEntriesNameMap[entry.toMiddleware];
-                    if (toMiddleware === undefined) {
-                        if (debug) {
-                            return;
-                        }
-                        throw new Error(`${entry.toMiddleware} is not found when adding ` +
-                            `${getMiddlewareNameWithAliases(entry.name, entry.aliases)} ` +
-                            `middleware ${entry.relation} ${entry.toMiddleware}`);
-                    }
-                    if (entry.relation === "after") {
-                        toMiddleware.after.push(entry);
-                    }
-                    if (entry.relation === "before") {
-                        toMiddleware.before.push(entry);
-                    }
-                }
-            });
-            const mainChain = sort(normalizedAbsoluteEntries)
-                .map(expandRelativeMiddlewareList)
-                .reduce((wholeList, expandedMiddlewareList) => {
-                wholeList.push(...expandedMiddlewareList);
-                return wholeList;
-            }, []);
-            return mainChain;
-        };
-        const stack = {
-            add: (middleware, options = {}) => {
-                const { name, override, aliases: _aliases } = options;
-                const entry = {
-                    step: "initialize",
-                    priority: "normal",
-                    middleware,
-                    ...options,
-                };
-                const aliases = getAllAliases(name, _aliases);
-                if (aliases.length > 0) {
-                    if (aliases.some((alias) => entriesNameSet.has(alias))) {
-                        if (!override)
-                            throw new Error(`Duplicate middleware name '${getMiddlewareNameWithAliases(name, _aliases)}'`);
-                        for (const alias of aliases) {
-                            const toOverrideIndex = absoluteEntries.findIndex((entry) => entry.name === alias || entry.aliases?.some((a) => a === alias));
-                            if (toOverrideIndex === -1) {
-                                continue;
-                            }
-                            const toOverride = absoluteEntries[toOverrideIndex];
-                            if (toOverride.step !== entry.step || entry.priority !== toOverride.priority) {
-                                throw new Error(`"${getMiddlewareNameWithAliases(toOverride.name, toOverride.aliases)}" middleware with ` +
-                                    `${toOverride.priority} priority in ${toOverride.step} step cannot ` +
-                                    `be overridden by "${getMiddlewareNameWithAliases(name, _aliases)}" middleware with ` +
-                                    `${entry.priority} priority in ${entry.step} step.`);
-                            }
-                            absoluteEntries.splice(toOverrideIndex, 1);
-                        }
-                    }
-                    for (const alias of aliases) {
-                        entriesNameSet.add(alias);
-                    }
-                }
-                absoluteEntries.push(entry);
-            },
-            addRelativeTo: (middleware, options) => {
-                const { name, override, aliases: _aliases } = options;
-                const entry = {
-                    middleware,
-                    ...options,
-                };
-                const aliases = getAllAliases(name, _aliases);
-                if (aliases.length > 0) {
-                    if (aliases.some((alias) => entriesNameSet.has(alias))) {
-                        if (!override)
-                            throw new Error(`Duplicate middleware name '${getMiddlewareNameWithAliases(name, _aliases)}'`);
-                        for (const alias of aliases) {
-                            const toOverrideIndex = relativeEntries.findIndex((entry) => entry.name === alias || entry.aliases?.some((a) => a === alias));
-                            if (toOverrideIndex === -1) {
-                                continue;
-                            }
-                            const toOverride = relativeEntries[toOverrideIndex];
-                            if (toOverride.toMiddleware !== entry.toMiddleware || toOverride.relation !== entry.relation) {
-                                throw new Error(`"${getMiddlewareNameWithAliases(toOverride.name, toOverride.aliases)}" middleware ` +
-                                    `${toOverride.relation} "${toOverride.toMiddleware}" middleware cannot be overridden ` +
-                                    `by "${getMiddlewareNameWithAliases(name, _aliases)}" middleware ${entry.relation} ` +
-                                    `"${entry.toMiddleware}" middleware.`);
-                            }
-                            relativeEntries.splice(toOverrideIndex, 1);
-                        }
-                    }
-                    for (const alias of aliases) {
-                        entriesNameSet.add(alias);
-                    }
-                }
-                relativeEntries.push(entry);
-            },
-            clone: () => cloneTo(constructStack()),
-            use: (plugin) => {
-                plugin.applyToStack(stack);
-            },
-            remove: (toRemove) => {
-                if (typeof toRemove === "string")
-                    return removeByName(toRemove);
-                else
-                    return removeByReference(toRemove);
-            },
-            removeByTag: (toRemove) => {
-                let isRemoved = false;
-                const filterCb = (entry) => {
-                    const { tags, name, aliases: _aliases } = entry;
-                    if (tags && tags.includes(toRemove)) {
-                        const aliases = getAllAliases(name, _aliases);
-                        for (const alias of aliases) {
-                            entriesNameSet.delete(alias);
-                        }
-                        isRemoved = true;
-                        return false;
-                    }
-                    return true;
-                };
-                absoluteEntries = absoluteEntries.filter(filterCb);
-                relativeEntries = relativeEntries.filter(filterCb);
-                return isRemoved;
-            },
-            concat: (from) => {
-                const cloned = cloneTo(constructStack());
-                cloned.use(from);
-                cloned.identifyOnResolve(identifyOnResolve || cloned.identifyOnResolve() || (from.identifyOnResolve?.() ?? false));
-                return cloned;
-            },
-            applyToStack: cloneTo,
-            identify: () => {
-                return getMiddlewareList(true).map((mw) => {
-                    const step = mw.step ??
-                        mw.relation +
-                            " " +
-                            mw.toMiddleware;
-                    return getMiddlewareNameWithAliases(mw.name, mw.aliases) + " - " + step;
-                });
-            },
-            identifyOnResolve(toggle) {
-                if (typeof toggle === "boolean")
-                    identifyOnResolve = toggle;
-                return identifyOnResolve;
-            },
-            resolve: (handler, context) => {
-                for (const middleware of getMiddlewareList()
-                    .map((entry) => entry.middleware)
-                    .reverse()) {
-                    handler = middleware(handler, context);
-                }
-                if (identifyOnResolve) {
-                    console.log(stack.identify());
-                }
-                return handler;
-            },
-        };
-        return stack;
-    };
-    const stepWeights = {
-        initialize: 5,
-        serialize: 4,
-        build: 3,
-        finalizeRequest: 2,
-        deserialize: 1,
-    };
-    const priorityWeights = {
-        high: 3,
-        normal: 2,
-        low: 1,
-    };
-
-    class Client {
-        constructor(config) {
-            this.config = config;
-            this.middlewareStack = constructStack();
-        }
-        send(command, optionsOrCb, cb) {
-            const options = typeof optionsOrCb !== "function" ? optionsOrCb : undefined;
-            const callback = typeof optionsOrCb === "function" ? optionsOrCb : cb;
-            const useHandlerCache = options === undefined && this.config.cacheMiddleware === true;
-            let handler;
-            if (useHandlerCache) {
-                if (!this.handlers) {
-                    this.handlers = new WeakMap();
-                }
-                const handlers = this.handlers;
-                if (handlers.has(command.constructor)) {
-                    handler = handlers.get(command.constructor);
-                }
-                else {
-                    handler = command.resolveMiddleware(this.middlewareStack, this.config, options);
-                    handlers.set(command.constructor, handler);
-                }
-            }
-            else {
-                delete this.handlers;
-                handler = command.resolveMiddleware(this.middlewareStack, this.config, options);
-            }
-            if (callback) {
-                handler(command)
-                    .then((result) => callback(null, result.output), (err) => callback(err))
-                    .catch(() => { });
-            }
-            else {
-                return handler(command).then((result) => result.output);
-            }
-        }
-        destroy() {
-            this.config?.requestHandler?.destroy?.();
-            delete this.handlers;
-        }
-    }
-
-    class Command {
-        constructor() {
-            this.middlewareStack = constructStack();
-        }
-        static classBuilder() {
-            return new ClassBuilder();
-        }
-        resolveMiddlewareWithContext(clientStack, configuration, options, { middlewareFn, clientName, commandName, inputFilterSensitiveLog, outputFilterSensitiveLog, smithyContext, additionalContext, CommandCtor, }) {
-            for (const mw of middlewareFn.bind(this)(CommandCtor, clientStack, configuration, options)) {
-                this.middlewareStack.use(mw);
-            }
-            const stack = clientStack.concat(this.middlewareStack);
-            const { logger } = configuration;
-            const handlerExecutionContext = {
-                logger,
-                clientName,
-                commandName,
-                inputFilterSensitiveLog,
-                outputFilterSensitiveLog,
-                [SMITHY_CONTEXT_KEY]: {
-                    commandInstance: this,
-                    ...smithyContext,
-                },
-                ...additionalContext,
-            };
-            const { requestHandler } = configuration;
-            return stack.resolve((request) => requestHandler.handle(request.request, options || {}), handlerExecutionContext);
-        }
-    }
-    class ClassBuilder {
-        constructor() {
-            this._init = () => { };
-            this._ep = {};
-            this._middlewareFn = () => [];
-            this._commandName = "";
-            this._clientName = "";
-            this._additionalContext = {};
-            this._smithyContext = {};
-            this._inputFilterSensitiveLog = (_) => _;
-            this._outputFilterSensitiveLog = (_) => _;
-            this._serializer = null;
-            this._deserializer = null;
-        }
-        init(cb) {
-            this._init = cb;
-        }
-        ep(endpointParameterInstructions) {
-            this._ep = endpointParameterInstructions;
-            return this;
-        }
-        m(middlewareSupplier) {
-            this._middlewareFn = middlewareSupplier;
-            return this;
-        }
-        s(service, operation, smithyContext = {}) {
-            this._smithyContext = {
-                service,
-                operation,
-                ...smithyContext,
-            };
-            return this;
-        }
-        c(additionalContext = {}) {
-            this._additionalContext = additionalContext;
-            return this;
-        }
-        n(clientName, commandName) {
-            this._clientName = clientName;
-            this._commandName = commandName;
-            return this;
-        }
-        f(inputFilter = (_) => _, outputFilter = (_) => _) {
-            this._inputFilterSensitiveLog = inputFilter;
-            this._outputFilterSensitiveLog = outputFilter;
-            return this;
-        }
-        ser(serializer) {
-            this._serializer = serializer;
-            return this;
-        }
-        de(deserializer) {
-            this._deserializer = deserializer;
-            return this;
-        }
-        build() {
-            const closure = this;
-            let CommandRef;
-            return (CommandRef = class extends Command {
-                static getEndpointParameterInstructions() {
-                    return closure._ep;
-                }
-                constructor(...[input]) {
-                    super();
-                    this.serialize = closure._serializer;
-                    this.deserialize = closure._deserializer;
-                    this.input = input ?? {};
-                    closure._init(this);
-                }
-                resolveMiddleware(stack, configuration, options) {
-                    return this.resolveMiddlewareWithContext(stack, configuration, options, {
-                        CommandCtor: CommandRef,
-                        middlewareFn: closure._middlewareFn,
-                        clientName: closure._clientName,
-                        commandName: closure._commandName,
-                        inputFilterSensitiveLog: closure._inputFilterSensitiveLog,
-                        outputFilterSensitiveLog: closure._outputFilterSensitiveLog,
-                        smithyContext: closure._smithyContext,
-                        additionalContext: closure._additionalContext,
-                    });
-                }
-            });
-        }
-    }
-
-    const SENSITIVE_STRING = "***SensitiveInformation***";
-
-    const expectBoolean = (value) => {
-        if (value === null || value === undefined) {
-            return undefined;
-        }
-        if (typeof value === "number") {
-            if (value === 0 || value === 1) {
-                logger.warn(stackTraceWarning(`Expected boolean, got ${typeof value}: ${value}`));
-            }
-            if (value === 0) {
-                return false;
-            }
-            if (value === 1) {
-                return true;
-            }
-        }
-        if (typeof value === "string") {
-            const lower = value.toLowerCase();
-            if (lower === "false" || lower === "true") {
-                logger.warn(stackTraceWarning(`Expected boolean, got ${typeof value}: ${value}`));
-            }
-            if (lower === "false") {
-                return false;
-            }
-            if (lower === "true") {
-                return true;
-            }
-        }
-        if (typeof value === "boolean") {
-            return value;
-        }
-        throw new TypeError(`Expected boolean, got ${typeof value}: ${value}`);
-    };
-    const expectNumber = (value) => {
-        if (value === null || value === undefined) {
-            return undefined;
-        }
-        if (typeof value === "string") {
-            const parsed = parseFloat(value);
-            if (!Number.isNaN(parsed)) {
-                if (String(parsed) !== String(value)) {
-                    logger.warn(stackTraceWarning(`Expected number but observed string: ${value}`));
-                }
-                return parsed;
-            }
-        }
-        if (typeof value === "number") {
-            return value;
-        }
-        throw new TypeError(`Expected number, got ${typeof value}: ${value}`);
-    };
-    const MAX_FLOAT = Math.ceil(2 ** 127 * (2 - 2 ** -23));
-    const expectFloat32 = (value) => {
-        const expected = expectNumber(value);
-        if (expected !== undefined && !Number.isNaN(expected) && expected !== Infinity && expected !== -Infinity) {
-            if (Math.abs(expected) > MAX_FLOAT) {
-                throw new TypeError(`Expected 32-bit float, got ${value}`);
-            }
-        }
-        return expected;
-    };
-    const expectLong = (value) => {
-        if (value === null || value === undefined) {
-            return undefined;
-        }
-        if (Number.isInteger(value) && !Number.isNaN(value)) {
-            return value;
-        }
-        throw new TypeError(`Expected integer, got ${typeof value}: ${value}`);
-    };
-    const expectInt32 = (value) => expectSizedInt(value, 32);
-    const expectShort = (value) => expectSizedInt(value, 16);
-    const expectByte = (value) => expectSizedInt(value, 8);
-    const expectSizedInt = (value, size) => {
-        const expected = expectLong(value);
-        if (expected !== undefined && castInt(expected, size) !== expected) {
-            throw new TypeError(`Expected ${size}-bit integer, got ${value}`);
-        }
-        return expected;
-    };
-    const castInt = (value, size) => {
-        switch (size) {
-            case 32:
-                return Int32Array.of(value)[0];
-            case 16:
-                return Int16Array.of(value)[0];
-            case 8:
-                return Int8Array.of(value)[0];
-        }
-    };
-    const expectNonNull = (value, location) => {
-        if (value === null || value === undefined) {
-            if (location) {
-                throw new TypeError(`Expected a non-null value for ${location}`);
-            }
-            throw new TypeError("Expected a non-null value");
-        }
-        return value;
-    };
-    const expectObject = (value) => {
-        if (value === null || value === undefined) {
-            return undefined;
-        }
-        if (typeof value === "object" && !Array.isArray(value)) {
-            return value;
-        }
-        const receivedType = Array.isArray(value) ? "array" : typeof value;
-        throw new TypeError(`Expected object, got ${receivedType}: ${value}`);
-    };
-    const expectString = (value) => {
-        if (value === null || value === undefined) {
-            return undefined;
-        }
-        if (typeof value === "string") {
-            return value;
-        }
-        if (["boolean", "number", "bigint"].includes(typeof value)) {
-            logger.warn(stackTraceWarning(`Expected string, got ${typeof value}: ${value}`));
-            return String(value);
-        }
-        throw new TypeError(`Expected string, got ${typeof value}: ${value}`);
-    };
-    const expectUnion = (value) => {
-        if (value === null || value === undefined) {
-            return undefined;
-        }
-        const asObject = expectObject(value);
-        const setKeys = Object.entries(asObject)
-            .filter(([, v]) => v != null)
-            .map(([k]) => k);
-        if (setKeys.length === 0) {
-            throw new TypeError(`Unions must have exactly one non-null member. None were found.`);
-        }
-        if (setKeys.length > 1) {
-            throw new TypeError(`Unions must have exactly one non-null member. Keys ${setKeys} were not null.`);
-        }
-        return asObject;
-    };
-    const strictParseFloat32 = (value) => {
-        if (typeof value == "string") {
-            return expectFloat32(parseNumber(value));
-        }
-        return expectFloat32(value);
-    };
-    const NUMBER_REGEX = /(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)|(-?Infinity)|(NaN)/g;
-    const parseNumber = (value) => {
-        const matches = value.match(NUMBER_REGEX);
-        if (matches === null || matches[0].length !== value.length) {
-            throw new TypeError(`Expected real number, got implicit NaN`);
-        }
-        return parseFloat(value);
-    };
-    const limitedParseDouble = (value) => {
-        if (typeof value == "string") {
-            return parseFloatString(value);
-        }
-        return expectNumber(value);
-    };
-    const parseFloatString = (value) => {
-        switch (value) {
-            case "NaN":
-                return NaN;
-            case "Infinity":
-                return Infinity;
-            case "-Infinity":
-                return -Infinity;
-            default:
-                throw new Error(`Unable to parse float value: ${value}`);
-        }
-    };
-    const strictParseInt32 = (value) => {
-        if (typeof value === "string") {
-            return expectInt32(parseNumber(value));
-        }
-        return expectInt32(value);
-    };
-    const strictParseShort = (value) => {
-        if (typeof value === "string") {
-            return expectShort(parseNumber(value));
-        }
-        return expectShort(value);
-    };
-    const strictParseByte = (value) => {
-        if (typeof value === "string") {
-            return expectByte(parseNumber(value));
-        }
-        return expectByte(value);
-    };
-    const stackTraceWarning = (message) => {
-        return String(new TypeError(message).stack || message)
-            .split("\n")
-            .slice(0, 5)
-            .filter((s) => !s.includes("stackTraceWarning"))
-            .join("\n");
-    };
-    const logger = {
-        warn: console.warn,
-    };
-
-    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const RFC3339 = new RegExp(/^(\d{4})-(\d{2})-(\d{2})[tT](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?[zZ]$/);
-    const parseRfc3339DateTime = (value) => {
-        if (value === null || value === undefined) {
-            return undefined;
-        }
-        if (typeof value !== "string") {
-            throw new TypeError("RFC-3339 date-times must be expressed as strings");
-        }
-        const match = RFC3339.exec(value);
-        if (!match) {
-            throw new TypeError("Invalid RFC-3339 date-time value");
-        }
-        const [_, yearStr, monthStr, dayStr, hours, minutes, seconds, fractionalMilliseconds] = match;
-        const year = strictParseShort(stripLeadingZeroes(yearStr));
-        const month = parseDateValue(monthStr, "month", 1, 12);
-        const day = parseDateValue(dayStr, "day", 1, 31);
-        return buildDate(year, month, day, { hours, minutes, seconds, fractionalMilliseconds });
-    };
-    const RFC3339_WITH_OFFSET = new RegExp(/^(\d{4})-(\d{2})-(\d{2})[tT](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(([-+]\d{2}\:\d{2})|[zZ])$/);
-    const parseRfc3339DateTimeWithOffset = (value) => {
-        if (value === null || value === undefined) {
-            return undefined;
-        }
-        if (typeof value !== "string") {
-            throw new TypeError("RFC-3339 date-times must be expressed as strings");
-        }
-        const match = RFC3339_WITH_OFFSET.exec(value);
-        if (!match) {
-            throw new TypeError("Invalid RFC-3339 date-time value");
-        }
-        const [_, yearStr, monthStr, dayStr, hours, minutes, seconds, fractionalMilliseconds, offsetStr] = match;
-        const year = strictParseShort(stripLeadingZeroes(yearStr));
-        const month = parseDateValue(monthStr, "month", 1, 12);
-        const day = parseDateValue(dayStr, "day", 1, 31);
-        const date = buildDate(year, month, day, { hours, minutes, seconds, fractionalMilliseconds });
-        if (offsetStr.toUpperCase() != "Z") {
-            date.setTime(date.getTime() - parseOffsetToMilliseconds(offsetStr));
-        }
-        return date;
-    };
-    const buildDate = (year, month, day, time) => {
-        const adjustedMonth = month - 1;
-        validateDayOfMonth(year, adjustedMonth, day);
-        return new Date(Date.UTC(year, adjustedMonth, day, parseDateValue(time.hours, "hour", 0, 23), parseDateValue(time.minutes, "minute", 0, 59), parseDateValue(time.seconds, "seconds", 0, 60), parseMilliseconds(time.fractionalMilliseconds)));
-    };
-    const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    const validateDayOfMonth = (year, month, day) => {
-        let maxDays = DAYS_IN_MONTH[month];
-        if (month === 1 && isLeapYear(year)) {
-            maxDays = 29;
-        }
-        if (day > maxDays) {
-            throw new TypeError(`Invalid day for ${MONTHS[month]} in ${year}: ${day}`);
-        }
-    };
-    const isLeapYear = (year) => {
-        return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-    };
-    const parseDateValue = (value, type, lower, upper) => {
-        const dateVal = strictParseByte(stripLeadingZeroes(value));
-        if (dateVal < lower || dateVal > upper) {
-            throw new TypeError(`${type} must be between ${lower} and ${upper}, inclusive`);
-        }
-        return dateVal;
-    };
-    const parseMilliseconds = (value) => {
-        if (value === null || value === undefined) {
-            return 0;
-        }
-        return strictParseFloat32("0." + value) * 1000;
-    };
-    const parseOffsetToMilliseconds = (value) => {
-        const directionStr = value[0];
-        let direction = 1;
-        if (directionStr == "+") {
-            direction = 1;
-        }
-        else if (directionStr == "-") {
-            direction = -1;
-        }
-        else {
-            throw new TypeError(`Offset direction, ${directionStr}, must be "+" or "-"`);
-        }
-        const hour = Number(value.substring(1, 3));
-        const minute = Number(value.substring(4, 6));
-        return direction * (hour * 60 + minute) * 60 * 1000;
-    };
-    const stripLeadingZeroes = (value) => {
-        let idx = 0;
-        while (idx < value.length - 1 && value.charAt(idx) === "0") {
-            idx++;
-        }
-        if (idx === 0) {
-            return value;
-        }
-        return value.slice(idx);
-    };
-
-    class ServiceException extends Error {
-        constructor(options) {
-            super(options.message);
-            Object.setPrototypeOf(this, Object.getPrototypeOf(this).constructor.prototype);
-            this.name = options.name;
-            this.$fault = options.$fault;
-            this.$metadata = options.$metadata;
-        }
-        static isInstance(value) {
-            if (!value)
-                return false;
-            const candidate = value;
-            return (ServiceException.prototype.isPrototypeOf(candidate) ||
-                (Boolean(candidate.$fault) &&
-                    Boolean(candidate.$metadata) &&
-                    (candidate.$fault === "client" || candidate.$fault === "server")));
-        }
-        static [Symbol.hasInstance](instance) {
-            if (!instance)
-                return false;
-            const candidate = instance;
-            if (this === ServiceException) {
-                return ServiceException.isInstance(instance);
-            }
-            if (ServiceException.isInstance(instance)) {
-                if (candidate.name && this.name) {
-                    return this.prototype.isPrototypeOf(instance) || candidate.name === this.name;
-                }
-                return this.prototype.isPrototypeOf(instance);
-            }
-            return false;
-        }
-    }
-    const decorateServiceException = (exception, additions = {}) => {
-        Object.entries(additions)
-            .filter(([, v]) => v !== undefined)
-            .forEach(([k, v]) => {
-            if (exception[k] == undefined || exception[k] === "") {
-                exception[k] = v;
-            }
-        });
-        const message = exception.message || exception.Message || "UnknownError";
-        exception.message = message;
-        delete exception.Message;
-        return exception;
-    };
-
-    const throwDefaultError$4 = ({ output, parsedBody, exceptionCtor, errorCode }) => {
-        const $metadata = deserializeMetadata$4(output);
-        const statusCode = $metadata.httpStatusCode ? $metadata.httpStatusCode + "" : undefined;
-        const response = new exceptionCtor({
-            name: parsedBody?.code || parsedBody?.Code || errorCode || statusCode || "UnknownError",
-            $fault: "client",
-            $metadata,
-        });
-        throw decorateServiceException(response, parsedBody);
-    };
-    const withBaseException = (ExceptionCtor) => {
-        return ({ output, parsedBody, errorCode }) => {
-            throwDefaultError$4({ output, parsedBody, exceptionCtor: ExceptionCtor, errorCode });
-        };
-    };
-    const deserializeMetadata$4 = (output) => ({
-        httpStatusCode: output.statusCode,
-        requestId: output.headers["x-amzn-requestid"] ?? output.headers["x-amzn-request-id"] ?? output.headers["x-amz-request-id"],
-        extendedRequestId: output.headers["x-amz-id-2"],
-        cfId: output.headers["x-amz-cf-id"],
-    });
-
-    const loadConfigsForDefaultMode = (mode) => {
-        switch (mode) {
-            case "standard":
-                return {
-                    retryMode: "standard",
-                    connectionTimeout: 3100,
-                };
-            case "in-region":
-                return {
-                    retryMode: "standard",
-                    connectionTimeout: 1100,
-                };
-            case "cross-region":
-                return {
-                    retryMode: "standard",
-                    connectionTimeout: 3100,
-                };
-            case "mobile":
-                return {
-                    retryMode: "standard",
-                    connectionTimeout: 30000,
-                };
-            default:
-                return {};
-        }
-    };
-
-    let warningEmitted = false;
-    const emitWarningIfUnsupportedVersion = (version) => {
-        if (version && !warningEmitted && parseInt(version.substring(1, version.indexOf("."))) < 16) {
-            warningEmitted = true;
-        }
-    };
-
-    const getChecksumConfiguration = (runtimeConfig) => {
-        const checksumAlgorithms = [];
-        for (const id in AlgorithmId) {
-            const algorithmId = AlgorithmId[id];
-            if (runtimeConfig[algorithmId] === undefined) {
-                continue;
-            }
-            checksumAlgorithms.push({
-                algorithmId: () => algorithmId,
-                checksumConstructor: () => runtimeConfig[algorithmId],
-            });
-        }
-        return {
-            addChecksumAlgorithm(algo) {
-                checksumAlgorithms.push(algo);
-            },
-            checksumAlgorithms() {
-                return checksumAlgorithms;
-            },
-        };
-    };
-    const resolveChecksumRuntimeConfig = (clientConfig) => {
-        const runtimeConfig = {};
-        clientConfig.checksumAlgorithms().forEach((checksumAlgorithm) => {
-            runtimeConfig[checksumAlgorithm.algorithmId()] = checksumAlgorithm.checksumConstructor();
-        });
-        return runtimeConfig;
-    };
-
-    const getRetryConfiguration = (runtimeConfig) => {
-        return {
-            setRetryStrategy(retryStrategy) {
-                runtimeConfig.retryStrategy = retryStrategy;
-            },
-            retryStrategy() {
-                return runtimeConfig.retryStrategy;
-            },
-        };
-    };
-    const resolveRetryRuntimeConfig = (retryStrategyConfiguration) => {
-        const runtimeConfig = {};
-        runtimeConfig.retryStrategy = retryStrategyConfiguration.retryStrategy();
-        return runtimeConfig;
-    };
-
-    const getDefaultExtensionConfiguration = (runtimeConfig) => {
-        return Object.assign(getChecksumConfiguration(runtimeConfig), getRetryConfiguration(runtimeConfig));
-    };
-    const resolveDefaultRuntimeConfig = (config) => {
-        return Object.assign(resolveChecksumRuntimeConfig(config), resolveRetryRuntimeConfig(config));
-    };
-
     const getValueFromTextNode = (obj) => {
         const textNodeName = "#text";
         for (const key in obj) {
@@ -4270,136 +2607,31 @@ ${toHex(hashedRequest)}`;
         return obj;
     };
 
-    const isSerializableHeaderValue = (value) => {
-        return value != null;
+    const expectObject$1 = (value) => {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+        if (typeof value === "object" && !Array.isArray(value)) {
+            return value;
+        }
+        const receivedType = Array.isArray(value) ? "array" : typeof value;
+        throw new TypeError(`Expected object, got ${receivedType}: ${value}`);
     };
-
-    class NoOpLogger {
-        trace() { }
-        debug() { }
-        info() { }
-        warn() { }
-        error() { }
-    }
-
-    function map(arg0, arg1, arg2) {
-        let target;
-        let filter;
-        let instructions;
-        if (typeof arg1 === "undefined" && typeof arg2 === "undefined") {
-            target = {};
-            instructions = arg0;
+    const expectUnion = (value) => {
+        if (value === null || value === undefined) {
+            return undefined;
         }
-        else {
-            target = arg0;
-            if (typeof arg1 === "function") {
-                filter = arg1;
-                instructions = arg2;
-                return mapWithFilter(target, filter, instructions);
-            }
-            else {
-                instructions = arg1;
-            }
+        const asObject = expectObject$1(value);
+        const setKeys = Object.entries(asObject)
+            .filter(([, v]) => v != null)
+            .map(([k]) => k);
+        if (setKeys.length === 0) {
+            throw new TypeError(`Unions must have exactly one non-null member. None were found.`);
         }
-        for (const key of Object.keys(instructions)) {
-            if (!Array.isArray(instructions[key])) {
-                target[key] = instructions[key];
-                continue;
-            }
-            applyInstruction(target, null, instructions, key);
+        if (setKeys.length > 1) {
+            throw new TypeError(`Unions must have exactly one non-null member. Keys ${setKeys} were not null.`);
         }
-        return target;
-    }
-    const take = (source, instructions) => {
-        const out = {};
-        for (const key in instructions) {
-            applyInstruction(out, source, instructions, key);
-        }
-        return out;
-    };
-    const mapWithFilter = (target, filter, instructions) => {
-        return map(target, Object.entries(instructions).reduce((_instructions, [key, value]) => {
-            if (Array.isArray(value)) {
-                _instructions[key] = value;
-            }
-            else {
-                if (typeof value === "function") {
-                    _instructions[key] = [filter, value()];
-                }
-                else {
-                    _instructions[key] = [filter, value];
-                }
-            }
-            return _instructions;
-        }, {}));
-    };
-    const applyInstruction = (target, source, instructions, targetKey) => {
-        if (source !== null) {
-            let instruction = instructions[targetKey];
-            if (typeof instruction === "function") {
-                instruction = [, instruction];
-            }
-            const [filter = nonNullish, valueFn = pass, sourceKey = targetKey] = instruction;
-            if ((typeof filter === "function" && filter(source[sourceKey])) || (typeof filter !== "function" && !!filter)) {
-                target[targetKey] = valueFn(source[sourceKey]);
-            }
-            return;
-        }
-        let [filter, value] = instructions[targetKey];
-        if (typeof value === "function") {
-            let _value;
-            const defaultFilterPassed = filter === undefined && (_value = value()) != null;
-            const customFilterPassed = (typeof filter === "function" && !!filter(void 0)) || (typeof filter !== "function" && !!filter);
-            if (defaultFilterPassed) {
-                target[targetKey] = _value;
-            }
-            else if (customFilterPassed) {
-                target[targetKey] = value();
-            }
-        }
-        else {
-            const defaultFilterPassed = filter === undefined && value != null;
-            const customFilterPassed = (typeof filter === "function" && !!filter(value)) || (typeof filter !== "function" && !!filter);
-            if (defaultFilterPassed || customFilterPassed) {
-                target[targetKey] = value;
-            }
-        }
-    };
-    const nonNullish = (_) => _ != null;
-    const pass = (_) => _;
-
-    const serializeFloat = (value) => {
-        if (value !== value) {
-            return "NaN";
-        }
-        switch (value) {
-            case Infinity:
-                return "Infinity";
-            case -Infinity:
-                return "-Infinity";
-            default:
-                return value;
-        }
-    };
-
-    const _json = (obj) => {
-        if (obj == null) {
-            return {};
-        }
-        if (Array.isArray(obj)) {
-            return obj.filter((_) => _ != null).map(_json);
-        }
-        if (typeof obj === "object") {
-            const target = {};
-            for (const key of Object.keys(obj)) {
-                if (obj[key] == null) {
-                    continue;
-                }
-                target[key] = _json(obj[key]);
-            }
-            return target;
-        }
-        return obj;
+        return asObject;
     };
 
     const awsExpectUnion = (value) => {
@@ -4457,11 +2689,14 @@ ${toHex(hashedRequest)}`;
         if (headerKey !== undefined) {
             return sanitizeErrorCode(output.headers[headerKey]);
         }
-        if (data.code !== undefined) {
-            return sanitizeErrorCode(data.code);
-        }
-        if (data["__type"] !== undefined) {
-            return sanitizeErrorCode(data["__type"]);
+        if (data && typeof data === "object") {
+            const codeKey = findKey(data, "code");
+            if (codeKey && data[codeKey] !== undefined) {
+                return sanitizeErrorCode(data[codeKey]);
+            }
+            if (data["__type"] !== undefined) {
+                return sanitizeErrorCode(data["__type"]);
+            }
         }
     };
 
@@ -6601,7 +4836,7 @@ ${toHex(hashedRequest)}`;
 
     const userAgentMiddleware = (options) => (next, context) => async (args) => {
         const { request } = args;
-        if (!HttpRequest.isInstance(request)) {
+        if (!HttpRequest$2.isInstance(request)) {
             return next(args);
         }
         const { headers } = request;
@@ -6760,7 +4995,7 @@ ${toHex(hashedRequest)}`;
     function contentLengthMiddleware(bodyLengthChecker) {
         return (next) => async (args) => {
             const request = args.request;
-            if (HttpRequest.isInstance(request)) {
+            if (HttpRequest$2.isInstance(request)) {
                 const { body, headers } = request;
                 if (body &&
                     Object.keys(headers)
@@ -6871,6 +5106,87 @@ ${toHex(hashedRequest)}`;
         return configProvider;
     };
 
+    let ProviderError$1 = class ProviderError extends Error {
+        constructor(message, options = true) {
+            let logger;
+            let tryNextLink = true;
+            if (typeof options === "boolean") {
+                logger = undefined;
+                tryNextLink = options;
+            }
+            else if (options != null && typeof options === "object") {
+                logger = options.logger;
+                tryNextLink = options.tryNextLink ?? true;
+            }
+            super(message);
+            this.name = "ProviderError";
+            this.tryNextLink = tryNextLink;
+            Object.setPrototypeOf(this, ProviderError.prototype);
+            logger?.debug?.(`@smithy/property-provider ${tryNextLink ? "->" : "(!)"} ${message}`);
+        }
+        static from(error, options = true) {
+            return Object.assign(new this(error.message, options), error);
+        }
+    };
+
+    let CredentialsProviderError$1 = class CredentialsProviderError extends ProviderError$1 {
+        constructor(message, options = true) {
+            super(message, options);
+            this.name = "CredentialsProviderError";
+            Object.setPrototypeOf(this, CredentialsProviderError.prototype);
+        }
+    };
+
+    const chain = (...providers) => async () => {
+        if (providers.length === 0) {
+            throw new ProviderError$1("No providers in chain");
+        }
+        let lastProviderError;
+        for (const provider of providers) {
+            try {
+                const credentials = await provider();
+                return credentials;
+            }
+            catch (err) {
+                lastProviderError = err;
+                if (err?.tryNextLink) {
+                    continue;
+                }
+                throw err;
+            }
+        }
+        throw lastProviderError;
+    };
+
+    const fromStatic$1 = (staticValue) => () => Promise.resolve(staticValue);
+
+    const memoize$1 = (provider, isExpired, requiresRefresh) => {
+        let resolved;
+        let pending;
+        let hasResult;
+        const coalesceProvider = async () => {
+            if (!pending) {
+                pending = provider();
+            }
+            try {
+                resolved = await pending;
+                hasResult = true;
+            }
+            finally {
+                pending = undefined;
+            }
+            return resolved;
+        };
+        {
+            return async (options) => {
+                if (!hasResult || options?.forceRefresh) {
+                    resolved = await coalesceProvider();
+                }
+                return resolved;
+            };
+        }
+    };
+
     function getSelectorName(functionString) {
         try {
             const constants = new Set(Array.from(functionString.match(/([A-Z_]){3,}/g) ?? []));
@@ -6884,27 +5200,27 @@ ${toHex(hashedRequest)}`;
         }
     }
 
-    const fromEnv$1 = (envVarSelector, logger) => async () => {
+    const fromEnv$1 = (envVarSelector, options) => async () => {
         try {
-            const config = envVarSelector(process.env);
+            const config = envVarSelector(process.env, options);
             if (config === undefined) {
                 throw new Error();
             }
             return config;
         }
         catch (e) {
-            throw new CredentialsProviderError(e.message || `Not found in ENV: ${getSelectorName(envVarSelector.toString())}`, { logger });
+            throw new CredentialsProviderError$1(e.message || `Not found in ENV: ${getSelectorName(envVarSelector.toString())}`, { logger: options?.logger });
         }
     };
 
-    const homeDirCache = {};
-    const getHomeDirCacheKey = () => {
+    const homeDirCache$1 = {};
+    const getHomeDirCacheKey$1 = () => {
         if (process && process.geteuid) {
             return `${process.geteuid()}`;
         }
         return "DEFAULT";
     };
-    const getHomeDir = () => {
+    const getHomeDir$1 = () => {
         const { HOME, USERPROFILE, HOMEPATH, HOMEDRIVE = `C:${path.sep}` } = process.env;
         if (HOME)
             return HOME;
@@ -6912,39 +5228,33 @@ ${toHex(hashedRequest)}`;
             return USERPROFILE;
         if (HOMEPATH)
             return `${HOMEDRIVE}${HOMEPATH}`;
-        const homeDirCacheKey = getHomeDirCacheKey();
-        if (!homeDirCache[homeDirCacheKey])
-            homeDirCache[homeDirCacheKey] = os.homedir();
-        return homeDirCache[homeDirCacheKey];
+        const homeDirCacheKey = getHomeDirCacheKey$1();
+        if (!homeDirCache$1[homeDirCacheKey])
+            homeDirCache$1[homeDirCacheKey] = os.homedir();
+        return homeDirCache$1[homeDirCacheKey];
     };
 
-    const ENV_PROFILE = "AWS_PROFILE";
-    const DEFAULT_PROFILE = "default";
-    const getProfileName = (init) => init.profile || process.env[ENV_PROFILE] || DEFAULT_PROFILE;
+    const ENV_PROFILE$1 = "AWS_PROFILE";
+    const DEFAULT_PROFILE$1 = "default";
+    const getProfileName$1 = (init) => init.profile || process.env[ENV_PROFILE$1] || DEFAULT_PROFILE$1;
 
-    const getSSOTokenFilepath = (id) => {
-        const hasher = crypto$1.createHash("sha1");
-        const cacheName = hasher.update(id).digest("hex");
-        return path.join(getHomeDir(), ".aws", "sso", "cache", `${cacheName}.json`);
-    };
+    var IniSectionType;
+    (function (IniSectionType) {
+        IniSectionType["PROFILE"] = "profile";
+        IniSectionType["SSO_SESSION"] = "sso-session";
+        IniSectionType["SERVICES"] = "services";
+    })(IniSectionType || (IniSectionType = {}));
 
-    const { readFile: readFile$1 } = fs.promises;
-    const getSSOTokenFromFile = async (id) => {
-        const ssoTokenFilepath = getSSOTokenFilepath(id);
-        const ssoTokenText = await readFile$1(ssoTokenFilepath, "utf8");
-        return JSON.parse(ssoTokenText);
-    };
-
-    const getConfigData = (data) => Object.entries(data)
+    const getConfigData$1 = (data) => Object.entries(data)
         .filter(([key]) => {
-        const indexOfSeparator = key.indexOf(CONFIG_PREFIX_SEPARATOR);
+        const indexOfSeparator = key.indexOf(CONFIG_PREFIX_SEPARATOR$2);
         if (indexOfSeparator === -1) {
             return false;
         }
         return Object.values(IniSectionType).includes(key.substring(0, indexOfSeparator));
     })
         .reduce((acc, [key, value]) => {
-        const indexOfSeparator = key.indexOf(CONFIG_PREFIX_SEPARATOR);
+        const indexOfSeparator = key.indexOf(CONFIG_PREFIX_SEPARATOR$2);
         const updatedKey = key.substring(0, indexOfSeparator) === IniSectionType.PROFILE ? key.substring(indexOfSeparator + 1) : key;
         acc[updatedKey] = value;
         return acc;
@@ -6952,15 +5262,15 @@ ${toHex(hashedRequest)}`;
         ...(data.default && { default: data.default }),
     });
 
-    const ENV_CONFIG_PATH = "AWS_CONFIG_FILE";
-    const getConfigFilepath = () => process.env[ENV_CONFIG_PATH] || path.join(getHomeDir(), ".aws", "config");
+    const ENV_CONFIG_PATH$1 = "AWS_CONFIG_FILE";
+    const getConfigFilepath$1 = () => process.env[ENV_CONFIG_PATH$1] || path.join(getHomeDir$1(), ".aws", "config");
 
-    const ENV_CREDENTIALS_PATH = "AWS_SHARED_CREDENTIALS_FILE";
-    const getCredentialsFilepath = () => process.env[ENV_CREDENTIALS_PATH] || path.join(getHomeDir(), ".aws", "credentials");
+    const ENV_CREDENTIALS_PATH$1 = "AWS_SHARED_CREDENTIALS_FILE";
+    const getCredentialsFilepath$1 = () => process.env[ENV_CREDENTIALS_PATH$1] || path.join(getHomeDir$1(), ".aws", "credentials");
 
-    const prefixKeyRegex = /^([\w-]+)\s(["'])?([\w-@\+\.%:/]+)\2$/;
-    const profileNameBlockList = ["__proto__", "profile __proto__"];
-    const parseIni = (iniData) => {
+    const prefixKeyRegex$1 = /^([\w-]+)\s(["'])?([\w-@\+\.%:/]+)\2$/;
+    const profileNameBlockList$1 = ["__proto__", "profile __proto__"];
+    const parseIni$1 = (iniData) => {
         const map = {};
         let currentSection;
         let currentSubSection;
@@ -6971,17 +5281,17 @@ ${toHex(hashedRequest)}`;
                 currentSection = undefined;
                 currentSubSection = undefined;
                 const sectionName = trimmedLine.substring(1, trimmedLine.length - 1);
-                const matches = prefixKeyRegex.exec(sectionName);
+                const matches = prefixKeyRegex$1.exec(sectionName);
                 if (matches) {
                     const [, prefix, , name] = matches;
                     if (Object.values(IniSectionType).includes(prefix)) {
-                        currentSection = [prefix, name].join(CONFIG_PREFIX_SEPARATOR);
+                        currentSection = [prefix, name].join(CONFIG_PREFIX_SEPARATOR$2);
                     }
                 }
                 else {
                     currentSection = sectionName;
                 }
-                if (profileNameBlockList.includes(sectionName)) {
+                if (profileNameBlockList$1.includes(sectionName)) {
                     throw new Error(`Found invalid profile name "${sectionName}"`);
                 }
             }
@@ -7000,7 +5310,7 @@ ${toHex(hashedRequest)}`;
                             currentSubSection = undefined;
                         }
                         map[currentSection] = map[currentSection] || {};
-                        const key = currentSubSection ? [currentSubSection, name].join(CONFIG_PREFIX_SEPARATOR) : name;
+                        const key = currentSubSection ? [currentSubSection, name].join(CONFIG_PREFIX_SEPARATOR$2) : name;
                         map[currentSection][key] = value;
                     }
                 }
@@ -7009,20 +5319,20 @@ ${toHex(hashedRequest)}`;
         return map;
     };
 
-    const { readFile } = fs.promises;
-    const filePromisesHash = {};
-    const slurpFile = (path, options) => {
-        if (!filePromisesHash[path] || options?.ignoreCache) {
-            filePromisesHash[path] = readFile(path, "utf8");
+    const { readFile: readFile$2 } = fs.promises;
+    const filePromisesHash$1 = {};
+    const slurpFile$1 = (path, options) => {
+        if (!filePromisesHash$1[path] || options?.ignoreCache) {
+            filePromisesHash$1[path] = readFile$2(path, "utf8");
         }
-        return filePromisesHash[path];
+        return filePromisesHash$1[path];
     };
 
-    const swallowError$1 = () => ({});
-    const CONFIG_PREFIX_SEPARATOR = ".";
-    const loadSharedConfigFiles = async (init = {}) => {
-        const { filepath = getCredentialsFilepath(), configFilepath = getConfigFilepath() } = init;
-        const homeDir = getHomeDir();
+    const swallowError$2 = () => ({});
+    const CONFIG_PREFIX_SEPARATOR$2 = ".";
+    const loadSharedConfigFiles$1 = async (init = {}) => {
+        const { filepath = getCredentialsFilepath$1(), configFilepath = getConfigFilepath$1() } = init;
+        const homeDir = getHomeDir$1();
         const relativeHomeDirPrefix = "~/";
         let resolvedFilepath = filepath;
         if (filepath.startsWith(relativeHomeDirPrefix)) {
@@ -7033,17 +5343,17 @@ ${toHex(hashedRequest)}`;
             resolvedConfigFilepath = path.join(homeDir, configFilepath.slice(2));
         }
         const parsedFiles = await Promise.all([
-            slurpFile(resolvedConfigFilepath, {
+            slurpFile$1(resolvedConfigFilepath, {
                 ignoreCache: init.ignoreCache,
             })
-                .then(parseIni)
-                .then(getConfigData)
-                .catch(swallowError$1),
-            slurpFile(resolvedFilepath, {
+                .then(parseIni$1)
+                .then(getConfigData$1)
+                .catch(swallowError$2),
+            slurpFile$1(resolvedFilepath, {
                 ignoreCache: init.ignoreCache,
             })
-                .then(parseIni)
-                .catch(swallowError$1),
+                .then(parseIni$1)
+                .catch(swallowError$2),
         ]);
         return {
             configFile: parsedFiles[0],
@@ -7051,39 +5361,9 @@ ${toHex(hashedRequest)}`;
         };
     };
 
-    const getSsoSessionData = (data) => Object.entries(data)
-        .filter(([key]) => key.startsWith(IniSectionType.SSO_SESSION + CONFIG_PREFIX_SEPARATOR))
-        .reduce((acc, [key, value]) => ({ ...acc, [key.substring(key.indexOf(CONFIG_PREFIX_SEPARATOR) + 1)]: value }), {});
-
-    const swallowError = () => ({});
-    const loadSsoSessionData = async (init = {}) => slurpFile(init.configFilepath ?? getConfigFilepath())
-        .then(parseIni)
-        .then(getSsoSessionData)
-        .catch(swallowError);
-
-    const mergeConfigFiles = (...files) => {
-        const merged = {};
-        for (const file of files) {
-            for (const [key, values] of Object.entries(file)) {
-                if (merged[key] !== undefined) {
-                    Object.assign(merged[key], values);
-                }
-                else {
-                    merged[key] = values;
-                }
-            }
-        }
-        return merged;
-    };
-
-    const parseKnownFiles = async (init) => {
-        const parsedFiles = await loadSharedConfigFiles(init);
-        return mergeConfigFiles(parsedFiles.configFile, parsedFiles.credentialsFile);
-    };
-
     const fromSharedConfigFiles = (configSelector, { preferredFile = "config", ...init } = {}) => async () => {
-        const profile = getProfileName(init);
-        const { configFile, credentialsFile } = await loadSharedConfigFiles(init);
+        const profile = getProfileName$1(init);
+        const { configFile, credentialsFile } = await loadSharedConfigFiles$1(init);
         const profileFromCredentials = credentialsFile[profile] || {};
         const profileFromConfig = configFile[profile] || {};
         const mergedProfile = preferredFile === "config"
@@ -7098,14 +5378,22 @@ ${toHex(hashedRequest)}`;
             return configValue;
         }
         catch (e) {
-            throw new CredentialsProviderError(e.message || `Not found in config files w/ profile [${profile}]: ${getSelectorName(configSelector.toString())}`, { logger: init.logger });
+            throw new CredentialsProviderError$1(e.message || `Not found in config files w/ profile [${profile}]: ${getSelectorName(configSelector.toString())}`, { logger: init.logger });
         }
     };
 
     const isFunction = (func) => typeof func === "function";
     const fromStatic = (defaultValue) => isFunction(defaultValue) ? async () => await defaultValue() : fromStatic$1(defaultValue);
 
-    const loadConfig = ({ environmentVariableSelector, configFileSelector, default: defaultValue }, configuration = {}) => memoize(chain(fromEnv$1(environmentVariableSelector), fromSharedConfigFiles(configFileSelector, configuration), fromStatic(defaultValue)));
+    const loadConfig = ({ environmentVariableSelector, configFileSelector, default: defaultValue }, configuration = {}) => {
+        const { signingName, logger } = configuration;
+        const envOptions = { signingName, logger };
+        return memoize$1(chain(fromEnv$1(environmentVariableSelector, envOptions), fromSharedConfigFiles(configFileSelector, configuration), fromStatic(defaultValue)));
+    };
+
+    const SMITHY_CONTEXT_KEY$1 = "__smithy_context";
+
+    const CONFIG_PREFIX_SEPARATOR$1 = ".";
 
     const ENV_ENDPOINT_URL = "AWS_ENDPOINT_URL";
     const CONFIG_ENDPOINT_URL = "endpoint_url";
@@ -7122,10 +5410,10 @@ ${toHex(hashedRequest)}`;
         },
         configFileSelector: (profile, config) => {
             if (config && profile.services) {
-                const servicesSection = config[["services", profile.services].join(CONFIG_PREFIX_SEPARATOR)];
+                const servicesSection = config[["services", profile.services].join(CONFIG_PREFIX_SEPARATOR$1)];
                 if (servicesSection) {
                     const servicePrefixParts = serviceId.split(" ").map((w) => w.toLowerCase());
-                    const endpointUrl = servicesSection[[servicePrefixParts.join("_"), CONFIG_ENDPOINT_URL].join(CONFIG_PREFIX_SEPARATOR)];
+                    const endpointUrl = servicesSection[[servicePrefixParts.join("_"), CONFIG_ENDPOINT_URL].join(CONFIG_PREFIX_SEPARATOR$1)];
                     if (endpointUrl)
                         return endpointUrl;
                 }
@@ -7140,7 +5428,7 @@ ${toHex(hashedRequest)}`;
 
     const getEndpointFromConfig = async (serviceId) => loadConfig(getEndpointUrlConfig(serviceId ?? ""))();
 
-    function parseQueryString(querystring) {
+    function parseQueryString$1(querystring) {
         const query = {};
         querystring = querystring.replace(/^\?/, "");
         if (querystring) {
@@ -7164,14 +5452,14 @@ ${toHex(hashedRequest)}`;
         return query;
     }
 
-    const parseUrl = (url) => {
+    const parseUrl$2 = (url) => {
         if (typeof url === "string") {
-            return parseUrl(new URL(url));
+            return parseUrl$2(new URL(url));
         }
         const { hostname, pathname, port, protocol, search } = url;
         let query;
         if (search) {
-            query = parseQueryString(search);
+            query = parseQueryString$1(search);
         }
         return {
             hostname,
@@ -7185,11 +5473,11 @@ ${toHex(hashedRequest)}`;
     const toEndpointV1 = (endpoint) => {
         if (typeof endpoint === "object") {
             if ("url" in endpoint) {
-                return parseUrl(endpoint.url);
+                return parseUrl$2(endpoint.url);
             }
             return endpoint;
         }
-        return parseUrl(endpoint);
+        return parseUrl$2(endpoint);
     };
 
     const getEndpointFromInstructions = async (commandInput, instructionsSupplier, clientConfig, context) => {
@@ -7241,6 +5529,15 @@ ${toHex(hashedRequest)}`;
             await resolveParamsForS3(endpointParams);
         }
         return endpointParams;
+    };
+
+    const getSmithyContext = (context) => context[SMITHY_CONTEXT_KEY$1] || (context[SMITHY_CONTEXT_KEY$1] = {});
+
+    const normalizeProvider$1 = (input) => {
+        if (typeof input === "function")
+            return input;
+        const promisified = Promise.resolve(input);
+        return () => promisified;
     };
 
     const endpointMiddleware = ({ config, instructions, }) => {
@@ -7316,13 +5613,13 @@ ${toHex(hashedRequest)}`;
         return resolvedConfig;
     };
 
-    var RETRY_MODES;
+    var RETRY_MODES$1;
     (function (RETRY_MODES) {
         RETRY_MODES["STANDARD"] = "standard";
         RETRY_MODES["ADAPTIVE"] = "adaptive";
-    })(RETRY_MODES || (RETRY_MODES = {}));
+    })(RETRY_MODES$1 || (RETRY_MODES$1 = {}));
     const DEFAULT_MAX_ATTEMPTS = 3;
-    const DEFAULT_RETRY_MODE = RETRY_MODES.STANDARD;
+    const DEFAULT_RETRY_MODE$1 = RETRY_MODES$1.STANDARD;
 
     const THROTTLING_ERROR_CODES = [
         "BandwidthLimitExceeded",
@@ -7342,7 +5639,7 @@ ${toHex(hashedRequest)}`;
     ];
     const TRANSIENT_ERROR_CODES = ["TimeoutError", "RequestTimeout", "RequestTimeoutException"];
     const TRANSIENT_ERROR_STATUS_CODES = [500, 502, 503, 504];
-    const NODEJS_TIMEOUT_ERROR_CODES = ["ECONNRESET", "ECONNREFUSED", "EPIPE", "ETIMEDOUT"];
+    const NODEJS_TIMEOUT_ERROR_CODES$1 = ["ECONNRESET", "ECONNREFUSED", "EPIPE", "ETIMEDOUT"];
 
     const isClockSkewCorrectedError = (error) => error.$metadata?.clockSkewCorrected;
     const isBrowserNetworkError = (error) => {
@@ -7364,7 +5661,7 @@ ${toHex(hashedRequest)}`;
         error.$retryable?.throttling == true;
     const isTransientError = (error, depth = 0) => isClockSkewCorrectedError(error) ||
         TRANSIENT_ERROR_CODES.includes(error.name) ||
-        NODEJS_TIMEOUT_ERROR_CODES.includes(error?.code || "") ||
+        NODEJS_TIMEOUT_ERROR_CODES$1.includes(error?.code || "") ||
         TRANSIENT_ERROR_STATUS_CODES.includes(error.$metadata?.httpStatusCode || 0) ||
         isBrowserNetworkError(error) ||
         (error.cause !== undefined && depth <= 10 && isTransientError(error.cause, depth + 1));
@@ -7517,7 +5814,7 @@ ${toHex(hashedRequest)}`;
     class StandardRetryStrategy {
         constructor(maxAttempts) {
             this.maxAttempts = maxAttempts;
-            this.mode = RETRY_MODES.STANDARD;
+            this.mode = RETRY_MODES$1.STANDARD;
             this.capacity = INITIAL_RETRY_TOKENS;
             this.retryBackoffStrategy = getDefaultRetryBackoffStrategy();
             this.maxAttemptsProvider = typeof maxAttempts === "function" ? maxAttempts : async () => maxAttempts;
@@ -7579,7 +5876,7 @@ ${toHex(hashedRequest)}`;
     class AdaptiveRetryStrategy {
         constructor(maxAttemptsProvider, options) {
             this.maxAttemptsProvider = maxAttemptsProvider;
-            this.mode = RETRY_MODES.ADAPTIVE;
+            this.mode = RETRY_MODES$1.ADAPTIVE;
             const { rateLimiter } = options ?? {};
             this.rateLimiter = rateLimiter ?? new DefaultRateLimiter();
             this.standardRetryStrategy = new StandardRetryStrategy(maxAttemptsProvider);
@@ -7595,6 +5892,75 @@ ${toHex(hashedRequest)}`;
         recordSuccess(token) {
             this.rateLimiter.updateClientSendingRate({});
             this.standardRetryStrategy.recordSuccess(token);
+        }
+    }
+
+    class HttpRequest {
+        constructor(options) {
+            this.method = options.method || "GET";
+            this.hostname = options.hostname || "localhost";
+            this.port = options.port;
+            this.query = options.query || {};
+            this.headers = options.headers || {};
+            this.body = options.body;
+            this.protocol = options.protocol
+                ? options.protocol.slice(-1) !== ":"
+                    ? `${options.protocol}:`
+                    : options.protocol
+                : "https:";
+            this.path = options.path ? (options.path.charAt(0) !== "/" ? `/${options.path}` : options.path) : "/";
+            this.username = options.username;
+            this.password = options.password;
+            this.fragment = options.fragment;
+        }
+        static clone(request) {
+            const cloned = new HttpRequest({
+                ...request,
+                headers: { ...request.headers },
+            });
+            if (cloned.query) {
+                cloned.query = cloneQuery(cloned.query);
+            }
+            return cloned;
+        }
+        static isInstance(request) {
+            if (!request) {
+                return false;
+            }
+            const req = request;
+            return ("method" in req &&
+                "protocol" in req &&
+                "hostname" in req &&
+                "path" in req &&
+                typeof req["query"] === "object" &&
+                typeof req["headers"] === "object");
+        }
+        clone() {
+            return HttpRequest.clone(this);
+        }
+    }
+    function cloneQuery(query) {
+        return Object.keys(query).reduce((carry, paramName) => {
+            const param = query[paramName];
+            return {
+                ...carry,
+                [paramName]: Array.isArray(param) ? [...param] : param,
+            };
+        }, {});
+    }
+
+    class HttpResponse {
+        constructor(options) {
+            this.statusCode = options.statusCode;
+            this.reason = options.reason;
+            this.headers = options.headers || {};
+            this.body = options.body;
+        }
+        static isInstance(response) {
+            if (!response)
+                return false;
+            const resp = response;
+            return typeof resp.statusCode === "number" && typeof resp.headers === "object";
         }
     }
 
@@ -7663,6 +6029,13 @@ ${toHex(hashedRequest)}`;
         return new Error(`AWS SDK error wrapper for ${error}`);
     };
 
+    const normalizeProvider = (input) => {
+        if (typeof input === "function")
+            return input;
+        const promisified = Promise.resolve(input);
+        return () => promisified;
+    };
+
     const ENV_MAX_ATTEMPTS = "AWS_MAX_ATTEMPTS";
     const CONFIG_MAX_ATTEMPTS = "max_attempts";
     const NODE_MAX_ATTEMPT_CONFIG_OPTIONS = {
@@ -7690,15 +6063,15 @@ ${toHex(hashedRequest)}`;
     };
     const resolveRetryConfig = (input) => {
         const { retryStrategy, retryMode: _retryMode, maxAttempts: _maxAttempts } = input;
-        const maxAttempts = normalizeProvider$1(_maxAttempts ?? DEFAULT_MAX_ATTEMPTS);
+        const maxAttempts = normalizeProvider(_maxAttempts ?? DEFAULT_MAX_ATTEMPTS);
         return Object.assign(input, {
             maxAttempts,
             retryStrategy: async () => {
                 if (retryStrategy) {
                     return retryStrategy;
                 }
-                const retryMode = await normalizeProvider$1(_retryMode)();
-                if (retryMode === RETRY_MODES.ADAPTIVE) {
+                const retryMode = await normalizeProvider(_retryMode)();
+                if (retryMode === RETRY_MODES$1.ADAPTIVE) {
                     return new AdaptiveRetryStrategy(maxAttempts);
                 }
                 return new StandardRetryStrategy(maxAttempts);
@@ -7710,7 +6083,1026 @@ ${toHex(hashedRequest)}`;
     const NODE_RETRY_MODE_CONFIG_OPTIONS = {
         environmentVariableSelector: (env) => env[ENV_RETRY_MODE],
         configFileSelector: (profile) => profile[CONFIG_RETRY_MODE],
-        default: DEFAULT_RETRY_MODE,
+        default: DEFAULT_RETRY_MODE$1,
+    };
+
+    const getAllAliases = (name, aliases) => {
+        const _aliases = [];
+        if (name) {
+            _aliases.push(name);
+        }
+        if (aliases) {
+            for (const alias of aliases) {
+                _aliases.push(alias);
+            }
+        }
+        return _aliases;
+    };
+    const getMiddlewareNameWithAliases = (name, aliases) => {
+        return `${name || "anonymous"}${aliases && aliases.length > 0 ? ` (a.k.a. ${aliases.join(",")})` : ""}`;
+    };
+    const constructStack = () => {
+        let absoluteEntries = [];
+        let relativeEntries = [];
+        let identifyOnResolve = false;
+        const entriesNameSet = new Set();
+        const sort = (entries) => entries.sort((a, b) => stepWeights[b.step] - stepWeights[a.step] ||
+            priorityWeights[b.priority || "normal"] - priorityWeights[a.priority || "normal"]);
+        const removeByName = (toRemove) => {
+            let isRemoved = false;
+            const filterCb = (entry) => {
+                const aliases = getAllAliases(entry.name, entry.aliases);
+                if (aliases.includes(toRemove)) {
+                    isRemoved = true;
+                    for (const alias of aliases) {
+                        entriesNameSet.delete(alias);
+                    }
+                    return false;
+                }
+                return true;
+            };
+            absoluteEntries = absoluteEntries.filter(filterCb);
+            relativeEntries = relativeEntries.filter(filterCb);
+            return isRemoved;
+        };
+        const removeByReference = (toRemove) => {
+            let isRemoved = false;
+            const filterCb = (entry) => {
+                if (entry.middleware === toRemove) {
+                    isRemoved = true;
+                    for (const alias of getAllAliases(entry.name, entry.aliases)) {
+                        entriesNameSet.delete(alias);
+                    }
+                    return false;
+                }
+                return true;
+            };
+            absoluteEntries = absoluteEntries.filter(filterCb);
+            relativeEntries = relativeEntries.filter(filterCb);
+            return isRemoved;
+        };
+        const cloneTo = (toStack) => {
+            absoluteEntries.forEach((entry) => {
+                toStack.add(entry.middleware, { ...entry });
+            });
+            relativeEntries.forEach((entry) => {
+                toStack.addRelativeTo(entry.middleware, { ...entry });
+            });
+            toStack.identifyOnResolve?.(stack.identifyOnResolve());
+            return toStack;
+        };
+        const expandRelativeMiddlewareList = (from) => {
+            const expandedMiddlewareList = [];
+            from.before.forEach((entry) => {
+                if (entry.before.length === 0 && entry.after.length === 0) {
+                    expandedMiddlewareList.push(entry);
+                }
+                else {
+                    expandedMiddlewareList.push(...expandRelativeMiddlewareList(entry));
+                }
+            });
+            expandedMiddlewareList.push(from);
+            from.after.reverse().forEach((entry) => {
+                if (entry.before.length === 0 && entry.after.length === 0) {
+                    expandedMiddlewareList.push(entry);
+                }
+                else {
+                    expandedMiddlewareList.push(...expandRelativeMiddlewareList(entry));
+                }
+            });
+            return expandedMiddlewareList;
+        };
+        const getMiddlewareList = (debug = false) => {
+            const normalizedAbsoluteEntries = [];
+            const normalizedRelativeEntries = [];
+            const normalizedEntriesNameMap = {};
+            absoluteEntries.forEach((entry) => {
+                const normalizedEntry = {
+                    ...entry,
+                    before: [],
+                    after: [],
+                };
+                for (const alias of getAllAliases(normalizedEntry.name, normalizedEntry.aliases)) {
+                    normalizedEntriesNameMap[alias] = normalizedEntry;
+                }
+                normalizedAbsoluteEntries.push(normalizedEntry);
+            });
+            relativeEntries.forEach((entry) => {
+                const normalizedEntry = {
+                    ...entry,
+                    before: [],
+                    after: [],
+                };
+                for (const alias of getAllAliases(normalizedEntry.name, normalizedEntry.aliases)) {
+                    normalizedEntriesNameMap[alias] = normalizedEntry;
+                }
+                normalizedRelativeEntries.push(normalizedEntry);
+            });
+            normalizedRelativeEntries.forEach((entry) => {
+                if (entry.toMiddleware) {
+                    const toMiddleware = normalizedEntriesNameMap[entry.toMiddleware];
+                    if (toMiddleware === undefined) {
+                        if (debug) {
+                            return;
+                        }
+                        throw new Error(`${entry.toMiddleware} is not found when adding ` +
+                            `${getMiddlewareNameWithAliases(entry.name, entry.aliases)} ` +
+                            `middleware ${entry.relation} ${entry.toMiddleware}`);
+                    }
+                    if (entry.relation === "after") {
+                        toMiddleware.after.push(entry);
+                    }
+                    if (entry.relation === "before") {
+                        toMiddleware.before.push(entry);
+                    }
+                }
+            });
+            const mainChain = sort(normalizedAbsoluteEntries)
+                .map(expandRelativeMiddlewareList)
+                .reduce((wholeList, expandedMiddlewareList) => {
+                wholeList.push(...expandedMiddlewareList);
+                return wholeList;
+            }, []);
+            return mainChain;
+        };
+        const stack = {
+            add: (middleware, options = {}) => {
+                const { name, override, aliases: _aliases } = options;
+                const entry = {
+                    step: "initialize",
+                    priority: "normal",
+                    middleware,
+                    ...options,
+                };
+                const aliases = getAllAliases(name, _aliases);
+                if (aliases.length > 0) {
+                    if (aliases.some((alias) => entriesNameSet.has(alias))) {
+                        if (!override)
+                            throw new Error(`Duplicate middleware name '${getMiddlewareNameWithAliases(name, _aliases)}'`);
+                        for (const alias of aliases) {
+                            const toOverrideIndex = absoluteEntries.findIndex((entry) => entry.name === alias || entry.aliases?.some((a) => a === alias));
+                            if (toOverrideIndex === -1) {
+                                continue;
+                            }
+                            const toOverride = absoluteEntries[toOverrideIndex];
+                            if (toOverride.step !== entry.step || entry.priority !== toOverride.priority) {
+                                throw new Error(`"${getMiddlewareNameWithAliases(toOverride.name, toOverride.aliases)}" middleware with ` +
+                                    `${toOverride.priority} priority in ${toOverride.step} step cannot ` +
+                                    `be overridden by "${getMiddlewareNameWithAliases(name, _aliases)}" middleware with ` +
+                                    `${entry.priority} priority in ${entry.step} step.`);
+                            }
+                            absoluteEntries.splice(toOverrideIndex, 1);
+                        }
+                    }
+                    for (const alias of aliases) {
+                        entriesNameSet.add(alias);
+                    }
+                }
+                absoluteEntries.push(entry);
+            },
+            addRelativeTo: (middleware, options) => {
+                const { name, override, aliases: _aliases } = options;
+                const entry = {
+                    middleware,
+                    ...options,
+                };
+                const aliases = getAllAliases(name, _aliases);
+                if (aliases.length > 0) {
+                    if (aliases.some((alias) => entriesNameSet.has(alias))) {
+                        if (!override)
+                            throw new Error(`Duplicate middleware name '${getMiddlewareNameWithAliases(name, _aliases)}'`);
+                        for (const alias of aliases) {
+                            const toOverrideIndex = relativeEntries.findIndex((entry) => entry.name === alias || entry.aliases?.some((a) => a === alias));
+                            if (toOverrideIndex === -1) {
+                                continue;
+                            }
+                            const toOverride = relativeEntries[toOverrideIndex];
+                            if (toOverride.toMiddleware !== entry.toMiddleware || toOverride.relation !== entry.relation) {
+                                throw new Error(`"${getMiddlewareNameWithAliases(toOverride.name, toOverride.aliases)}" middleware ` +
+                                    `${toOverride.relation} "${toOverride.toMiddleware}" middleware cannot be overridden ` +
+                                    `by "${getMiddlewareNameWithAliases(name, _aliases)}" middleware ${entry.relation} ` +
+                                    `"${entry.toMiddleware}" middleware.`);
+                            }
+                            relativeEntries.splice(toOverrideIndex, 1);
+                        }
+                    }
+                    for (const alias of aliases) {
+                        entriesNameSet.add(alias);
+                    }
+                }
+                relativeEntries.push(entry);
+            },
+            clone: () => cloneTo(constructStack()),
+            use: (plugin) => {
+                plugin.applyToStack(stack);
+            },
+            remove: (toRemove) => {
+                if (typeof toRemove === "string")
+                    return removeByName(toRemove);
+                else
+                    return removeByReference(toRemove);
+            },
+            removeByTag: (toRemove) => {
+                let isRemoved = false;
+                const filterCb = (entry) => {
+                    const { tags, name, aliases: _aliases } = entry;
+                    if (tags && tags.includes(toRemove)) {
+                        const aliases = getAllAliases(name, _aliases);
+                        for (const alias of aliases) {
+                            entriesNameSet.delete(alias);
+                        }
+                        isRemoved = true;
+                        return false;
+                    }
+                    return true;
+                };
+                absoluteEntries = absoluteEntries.filter(filterCb);
+                relativeEntries = relativeEntries.filter(filterCb);
+                return isRemoved;
+            },
+            concat: (from) => {
+                const cloned = cloneTo(constructStack());
+                cloned.use(from);
+                cloned.identifyOnResolve(identifyOnResolve || cloned.identifyOnResolve() || (from.identifyOnResolve?.() ?? false));
+                return cloned;
+            },
+            applyToStack: cloneTo,
+            identify: () => {
+                return getMiddlewareList(true).map((mw) => {
+                    const step = mw.step ??
+                        mw.relation +
+                            " " +
+                            mw.toMiddleware;
+                    return getMiddlewareNameWithAliases(mw.name, mw.aliases) + " - " + step;
+                });
+            },
+            identifyOnResolve(toggle) {
+                if (typeof toggle === "boolean")
+                    identifyOnResolve = toggle;
+                return identifyOnResolve;
+            },
+            resolve: (handler, context) => {
+                for (const middleware of getMiddlewareList()
+                    .map((entry) => entry.middleware)
+                    .reverse()) {
+                    handler = middleware(handler, context);
+                }
+                if (identifyOnResolve) {
+                    console.log(stack.identify());
+                }
+                return handler;
+            },
+        };
+        return stack;
+    };
+    const stepWeights = {
+        initialize: 5,
+        serialize: 4,
+        build: 3,
+        finalizeRequest: 2,
+        deserialize: 1,
+    };
+    const priorityWeights = {
+        high: 3,
+        normal: 2,
+        low: 1,
+    };
+
+    class Client {
+        constructor(config) {
+            this.config = config;
+            this.middlewareStack = constructStack();
+        }
+        send(command, optionsOrCb, cb) {
+            const options = typeof optionsOrCb !== "function" ? optionsOrCb : undefined;
+            const callback = typeof optionsOrCb === "function" ? optionsOrCb : cb;
+            const useHandlerCache = options === undefined && this.config.cacheMiddleware === true;
+            let handler;
+            if (useHandlerCache) {
+                if (!this.handlers) {
+                    this.handlers = new WeakMap();
+                }
+                const handlers = this.handlers;
+                if (handlers.has(command.constructor)) {
+                    handler = handlers.get(command.constructor);
+                }
+                else {
+                    handler = command.resolveMiddleware(this.middlewareStack, this.config, options);
+                    handlers.set(command.constructor, handler);
+                }
+            }
+            else {
+                delete this.handlers;
+                handler = command.resolveMiddleware(this.middlewareStack, this.config, options);
+            }
+            if (callback) {
+                handler(command)
+                    .then((result) => callback(null, result.output), (err) => callback(err))
+                    .catch(() => { });
+            }
+            else {
+                return handler(command).then((result) => result.output);
+            }
+        }
+        destroy() {
+            this.config?.requestHandler?.destroy?.();
+            delete this.handlers;
+        }
+    }
+
+    var AlgorithmId;
+    (function (AlgorithmId) {
+        AlgorithmId["MD5"] = "md5";
+        AlgorithmId["CRC32"] = "crc32";
+        AlgorithmId["CRC32C"] = "crc32c";
+        AlgorithmId["SHA1"] = "sha1";
+        AlgorithmId["SHA256"] = "sha256";
+    })(AlgorithmId || (AlgorithmId = {}));
+
+    const SMITHY_CONTEXT_KEY = "__smithy_context";
+
+    class Command {
+        constructor() {
+            this.middlewareStack = constructStack();
+        }
+        static classBuilder() {
+            return new ClassBuilder();
+        }
+        resolveMiddlewareWithContext(clientStack, configuration, options, { middlewareFn, clientName, commandName, inputFilterSensitiveLog, outputFilterSensitiveLog, smithyContext, additionalContext, CommandCtor, }) {
+            for (const mw of middlewareFn.bind(this)(CommandCtor, clientStack, configuration, options)) {
+                this.middlewareStack.use(mw);
+            }
+            const stack = clientStack.concat(this.middlewareStack);
+            const { logger } = configuration;
+            const handlerExecutionContext = {
+                logger,
+                clientName,
+                commandName,
+                inputFilterSensitiveLog,
+                outputFilterSensitiveLog,
+                [SMITHY_CONTEXT_KEY]: {
+                    commandInstance: this,
+                    ...smithyContext,
+                },
+                ...additionalContext,
+            };
+            const { requestHandler } = configuration;
+            return stack.resolve((request) => requestHandler.handle(request.request, options || {}), handlerExecutionContext);
+        }
+    }
+    class ClassBuilder {
+        constructor() {
+            this._init = () => { };
+            this._ep = {};
+            this._middlewareFn = () => [];
+            this._commandName = "";
+            this._clientName = "";
+            this._additionalContext = {};
+            this._smithyContext = {};
+            this._inputFilterSensitiveLog = (_) => _;
+            this._outputFilterSensitiveLog = (_) => _;
+            this._serializer = null;
+            this._deserializer = null;
+        }
+        init(cb) {
+            this._init = cb;
+        }
+        ep(endpointParameterInstructions) {
+            this._ep = endpointParameterInstructions;
+            return this;
+        }
+        m(middlewareSupplier) {
+            this._middlewareFn = middlewareSupplier;
+            return this;
+        }
+        s(service, operation, smithyContext = {}) {
+            this._smithyContext = {
+                service,
+                operation,
+                ...smithyContext,
+            };
+            return this;
+        }
+        c(additionalContext = {}) {
+            this._additionalContext = additionalContext;
+            return this;
+        }
+        n(clientName, commandName) {
+            this._clientName = clientName;
+            this._commandName = commandName;
+            return this;
+        }
+        f(inputFilter = (_) => _, outputFilter = (_) => _) {
+            this._inputFilterSensitiveLog = inputFilter;
+            this._outputFilterSensitiveLog = outputFilter;
+            return this;
+        }
+        ser(serializer) {
+            this._serializer = serializer;
+            return this;
+        }
+        de(deserializer) {
+            this._deserializer = deserializer;
+            return this;
+        }
+        build() {
+            const closure = this;
+            let CommandRef;
+            return (CommandRef = class extends Command {
+                static getEndpointParameterInstructions() {
+                    return closure._ep;
+                }
+                constructor(...[input]) {
+                    super();
+                    this.serialize = closure._serializer;
+                    this.deserialize = closure._deserializer;
+                    this.input = input ?? {};
+                    closure._init(this);
+                }
+                resolveMiddleware(stack, configuration, options) {
+                    return this.resolveMiddlewareWithContext(stack, configuration, options, {
+                        CommandCtor: CommandRef,
+                        middlewareFn: closure._middlewareFn,
+                        clientName: closure._clientName,
+                        commandName: closure._commandName,
+                        inputFilterSensitiveLog: closure._inputFilterSensitiveLog,
+                        outputFilterSensitiveLog: closure._outputFilterSensitiveLog,
+                        smithyContext: closure._smithyContext,
+                        additionalContext: closure._additionalContext,
+                    });
+                }
+            });
+        }
+    }
+
+    const SENSITIVE_STRING = "***SensitiveInformation***";
+
+    class ServiceException extends Error {
+        constructor(options) {
+            super(options.message);
+            Object.setPrototypeOf(this, Object.getPrototypeOf(this).constructor.prototype);
+            this.name = options.name;
+            this.$fault = options.$fault;
+            this.$metadata = options.$metadata;
+        }
+        static isInstance(value) {
+            if (!value)
+                return false;
+            const candidate = value;
+            return (ServiceException.prototype.isPrototypeOf(candidate) ||
+                (Boolean(candidate.$fault) &&
+                    Boolean(candidate.$metadata) &&
+                    (candidate.$fault === "client" || candidate.$fault === "server")));
+        }
+        static [Symbol.hasInstance](instance) {
+            if (!instance)
+                return false;
+            const candidate = instance;
+            if (this === ServiceException) {
+                return ServiceException.isInstance(instance);
+            }
+            if (ServiceException.isInstance(instance)) {
+                if (candidate.name && this.name) {
+                    return this.prototype.isPrototypeOf(instance) || candidate.name === this.name;
+                }
+                return this.prototype.isPrototypeOf(instance);
+            }
+            return false;
+        }
+    }
+    const decorateServiceException = (exception, additions = {}) => {
+        Object.entries(additions)
+            .filter(([, v]) => v !== undefined)
+            .forEach(([k, v]) => {
+            if (exception[k] == undefined || exception[k] === "") {
+                exception[k] = v;
+            }
+        });
+        const message = exception.message || exception.Message || "UnknownError";
+        exception.message = message;
+        delete exception.Message;
+        return exception;
+    };
+
+    const throwDefaultError$4 = ({ output, parsedBody, exceptionCtor, errorCode }) => {
+        const $metadata = deserializeMetadata$4(output);
+        const statusCode = $metadata.httpStatusCode ? $metadata.httpStatusCode + "" : undefined;
+        const response = new exceptionCtor({
+            name: parsedBody?.code || parsedBody?.Code || errorCode || statusCode || "UnknownError",
+            $fault: "client",
+            $metadata,
+        });
+        throw decorateServiceException(response, parsedBody);
+    };
+    const withBaseException = (ExceptionCtor) => {
+        return ({ output, parsedBody, errorCode }) => {
+            throwDefaultError$4({ output, parsedBody, exceptionCtor: ExceptionCtor, errorCode });
+        };
+    };
+    const deserializeMetadata$4 = (output) => ({
+        httpStatusCode: output.statusCode,
+        requestId: output.headers["x-amzn-requestid"] ?? output.headers["x-amzn-request-id"] ?? output.headers["x-amz-request-id"],
+        extendedRequestId: output.headers["x-amz-id-2"],
+        cfId: output.headers["x-amz-cf-id"],
+    });
+
+    const loadConfigsForDefaultMode = (mode) => {
+        switch (mode) {
+            case "standard":
+                return {
+                    retryMode: "standard",
+                    connectionTimeout: 3100,
+                };
+            case "in-region":
+                return {
+                    retryMode: "standard",
+                    connectionTimeout: 1100,
+                };
+            case "cross-region":
+                return {
+                    retryMode: "standard",
+                    connectionTimeout: 3100,
+                };
+            case "mobile":
+                return {
+                    retryMode: "standard",
+                    connectionTimeout: 30000,
+                };
+            default:
+                return {};
+        }
+    };
+
+    let warningEmitted = false;
+    const emitWarningIfUnsupportedVersion = (version) => {
+        if (version && !warningEmitted && parseInt(version.substring(1, version.indexOf("."))) < 16) {
+            warningEmitted = true;
+        }
+    };
+
+    const getChecksumConfiguration = (runtimeConfig) => {
+        const checksumAlgorithms = [];
+        for (const id in AlgorithmId) {
+            const algorithmId = AlgorithmId[id];
+            if (runtimeConfig[algorithmId] === undefined) {
+                continue;
+            }
+            checksumAlgorithms.push({
+                algorithmId: () => algorithmId,
+                checksumConstructor: () => runtimeConfig[algorithmId],
+            });
+        }
+        return {
+            addChecksumAlgorithm(algo) {
+                checksumAlgorithms.push(algo);
+            },
+            checksumAlgorithms() {
+                return checksumAlgorithms;
+            },
+        };
+    };
+    const resolveChecksumRuntimeConfig = (clientConfig) => {
+        const runtimeConfig = {};
+        clientConfig.checksumAlgorithms().forEach((checksumAlgorithm) => {
+            runtimeConfig[checksumAlgorithm.algorithmId()] = checksumAlgorithm.checksumConstructor();
+        });
+        return runtimeConfig;
+    };
+
+    const getRetryConfiguration = (runtimeConfig) => {
+        return {
+            setRetryStrategy(retryStrategy) {
+                runtimeConfig.retryStrategy = retryStrategy;
+            },
+            retryStrategy() {
+                return runtimeConfig.retryStrategy;
+            },
+        };
+    };
+    const resolveRetryRuntimeConfig = (retryStrategyConfiguration) => {
+        const runtimeConfig = {};
+        runtimeConfig.retryStrategy = retryStrategyConfiguration.retryStrategy();
+        return runtimeConfig;
+    };
+
+    const getDefaultExtensionConfiguration = (runtimeConfig) => {
+        return Object.assign(getChecksumConfiguration(runtimeConfig), getRetryConfiguration(runtimeConfig));
+    };
+    const resolveDefaultRuntimeConfig = (config) => {
+        return Object.assign(resolveChecksumRuntimeConfig(config), resolveRetryRuntimeConfig(config));
+    };
+
+    const isSerializableHeaderValue = (value) => {
+        return value != null;
+    };
+
+    class NoOpLogger {
+        trace() { }
+        debug() { }
+        info() { }
+        warn() { }
+        error() { }
+    }
+
+    function map(arg0, arg1, arg2) {
+        let target;
+        let filter;
+        let instructions;
+        if (typeof arg1 === "undefined" && typeof arg2 === "undefined") {
+            target = {};
+            instructions = arg0;
+        }
+        else {
+            target = arg0;
+            if (typeof arg1 === "function") {
+                filter = arg1;
+                instructions = arg2;
+                return mapWithFilter(target, filter, instructions);
+            }
+            else {
+                instructions = arg1;
+            }
+        }
+        for (const key of Object.keys(instructions)) {
+            if (!Array.isArray(instructions[key])) {
+                target[key] = instructions[key];
+                continue;
+            }
+            applyInstruction(target, null, instructions, key);
+        }
+        return target;
+    }
+    const take = (source, instructions) => {
+        const out = {};
+        for (const key in instructions) {
+            applyInstruction(out, source, instructions, key);
+        }
+        return out;
+    };
+    const mapWithFilter = (target, filter, instructions) => {
+        return map(target, Object.entries(instructions).reduce((_instructions, [key, value]) => {
+            if (Array.isArray(value)) {
+                _instructions[key] = value;
+            }
+            else {
+                if (typeof value === "function") {
+                    _instructions[key] = [filter, value()];
+                }
+                else {
+                    _instructions[key] = [filter, value];
+                }
+            }
+            return _instructions;
+        }, {}));
+    };
+    const applyInstruction = (target, source, instructions, targetKey) => {
+        if (source !== null) {
+            let instruction = instructions[targetKey];
+            if (typeof instruction === "function") {
+                instruction = [, instruction];
+            }
+            const [filter = nonNullish, valueFn = pass, sourceKey = targetKey] = instruction;
+            if ((typeof filter === "function" && filter(source[sourceKey])) || (typeof filter !== "function" && !!filter)) {
+                target[targetKey] = valueFn(source[sourceKey]);
+            }
+            return;
+        }
+        let [filter, value] = instructions[targetKey];
+        if (typeof value === "function") {
+            let _value;
+            const defaultFilterPassed = filter === undefined && (_value = value()) != null;
+            const customFilterPassed = (typeof filter === "function" && !!filter(void 0)) || (typeof filter !== "function" && !!filter);
+            if (defaultFilterPassed) {
+                target[targetKey] = _value;
+            }
+            else if (customFilterPassed) {
+                target[targetKey] = value();
+            }
+        }
+        else {
+            const defaultFilterPassed = filter === undefined && value != null;
+            const customFilterPassed = (typeof filter === "function" && !!filter(value)) || (typeof filter !== "function" && !!filter);
+            if (defaultFilterPassed || customFilterPassed) {
+                target[targetKey] = value;
+            }
+        }
+    };
+    const nonNullish = (_) => _ != null;
+    const pass = (_) => _;
+
+    const serializeFloat = (value) => {
+        if (value !== value) {
+            return "NaN";
+        }
+        switch (value) {
+            case Infinity:
+                return "Infinity";
+            case -Infinity:
+                return "-Infinity";
+            default:
+                return value;
+        }
+    };
+
+    const _json = (obj) => {
+        if (obj == null) {
+            return {};
+        }
+        if (Array.isArray(obj)) {
+            return obj.filter((_) => _ != null).map(_json);
+        }
+        if (typeof obj === "object") {
+            const target = {};
+            for (const key of Object.keys(obj)) {
+                if (obj[key] == null) {
+                    continue;
+                }
+                target[key] = _json(obj[key]);
+            }
+            return target;
+        }
+        return obj;
+    };
+
+    const expectBoolean = (value) => {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+        if (typeof value === "number") {
+            if (value === 0 || value === 1) {
+                logger.warn(stackTraceWarning(`Expected boolean, got ${typeof value}: ${value}`));
+            }
+            if (value === 0) {
+                return false;
+            }
+            if (value === 1) {
+                return true;
+            }
+        }
+        if (typeof value === "string") {
+            const lower = value.toLowerCase();
+            if (lower === "false" || lower === "true") {
+                logger.warn(stackTraceWarning(`Expected boolean, got ${typeof value}: ${value}`));
+            }
+            if (lower === "false") {
+                return false;
+            }
+            if (lower === "true") {
+                return true;
+            }
+        }
+        if (typeof value === "boolean") {
+            return value;
+        }
+        throw new TypeError(`Expected boolean, got ${typeof value}: ${value}`);
+    };
+    const expectNumber = (value) => {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+        if (typeof value === "string") {
+            const parsed = parseFloat(value);
+            if (!Number.isNaN(parsed)) {
+                if (String(parsed) !== String(value)) {
+                    logger.warn(stackTraceWarning(`Expected number but observed string: ${value}`));
+                }
+                return parsed;
+            }
+        }
+        if (typeof value === "number") {
+            return value;
+        }
+        throw new TypeError(`Expected number, got ${typeof value}: ${value}`);
+    };
+    const MAX_FLOAT = Math.ceil(2 ** 127 * (2 - 2 ** -23));
+    const expectFloat32 = (value) => {
+        const expected = expectNumber(value);
+        if (expected !== undefined && !Number.isNaN(expected) && expected !== Infinity && expected !== -Infinity) {
+            if (Math.abs(expected) > MAX_FLOAT) {
+                throw new TypeError(`Expected 32-bit float, got ${value}`);
+            }
+        }
+        return expected;
+    };
+    const expectLong = (value) => {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+        if (Number.isInteger(value) && !Number.isNaN(value)) {
+            return value;
+        }
+        throw new TypeError(`Expected integer, got ${typeof value}: ${value}`);
+    };
+    const expectInt32 = (value) => expectSizedInt(value, 32);
+    const expectShort = (value) => expectSizedInt(value, 16);
+    const expectByte = (value) => expectSizedInt(value, 8);
+    const expectSizedInt = (value, size) => {
+        const expected = expectLong(value);
+        if (expected !== undefined && castInt(expected, size) !== expected) {
+            throw new TypeError(`Expected ${size}-bit integer, got ${value}`);
+        }
+        return expected;
+    };
+    const castInt = (value, size) => {
+        switch (size) {
+            case 32:
+                return Int32Array.of(value)[0];
+            case 16:
+                return Int16Array.of(value)[0];
+            case 8:
+                return Int8Array.of(value)[0];
+        }
+    };
+    const expectNonNull = (value, location) => {
+        if (value === null || value === undefined) {
+            if (location) {
+                throw new TypeError(`Expected a non-null value for ${location}`);
+            }
+            throw new TypeError("Expected a non-null value");
+        }
+        return value;
+    };
+    const expectObject = (value) => {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+        if (typeof value === "object" && !Array.isArray(value)) {
+            return value;
+        }
+        const receivedType = Array.isArray(value) ? "array" : typeof value;
+        throw new TypeError(`Expected object, got ${receivedType}: ${value}`);
+    };
+    const expectString = (value) => {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+        if (typeof value === "string") {
+            return value;
+        }
+        if (["boolean", "number", "bigint"].includes(typeof value)) {
+            logger.warn(stackTraceWarning(`Expected string, got ${typeof value}: ${value}`));
+            return String(value);
+        }
+        throw new TypeError(`Expected string, got ${typeof value}: ${value}`);
+    };
+    const strictParseFloat32 = (value) => {
+        if (typeof value == "string") {
+            return expectFloat32(parseNumber(value));
+        }
+        return expectFloat32(value);
+    };
+    const NUMBER_REGEX = /(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)|(-?Infinity)|(NaN)/g;
+    const parseNumber = (value) => {
+        const matches = value.match(NUMBER_REGEX);
+        if (matches === null || matches[0].length !== value.length) {
+            throw new TypeError(`Expected real number, got implicit NaN`);
+        }
+        return parseFloat(value);
+    };
+    const limitedParseDouble = (value) => {
+        if (typeof value == "string") {
+            return parseFloatString(value);
+        }
+        return expectNumber(value);
+    };
+    const parseFloatString = (value) => {
+        switch (value) {
+            case "NaN":
+                return NaN;
+            case "Infinity":
+                return Infinity;
+            case "-Infinity":
+                return -Infinity;
+            default:
+                throw new Error(`Unable to parse float value: ${value}`);
+        }
+    };
+    const strictParseInt32 = (value) => {
+        if (typeof value === "string") {
+            return expectInt32(parseNumber(value));
+        }
+        return expectInt32(value);
+    };
+    const strictParseShort = (value) => {
+        if (typeof value === "string") {
+            return expectShort(parseNumber(value));
+        }
+        return expectShort(value);
+    };
+    const strictParseByte = (value) => {
+        if (typeof value === "string") {
+            return expectByte(parseNumber(value));
+        }
+        return expectByte(value);
+    };
+    const stackTraceWarning = (message) => {
+        return String(new TypeError(message).stack || message)
+            .split("\n")
+            .slice(0, 5)
+            .filter((s) => !s.includes("stackTraceWarning"))
+            .join("\n");
+    };
+    const logger = {
+        warn: console.warn,
+    };
+
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const RFC3339 = new RegExp(/^(\d{4})-(\d{2})-(\d{2})[tT](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?[zZ]$/);
+    const parseRfc3339DateTime = (value) => {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+        if (typeof value !== "string") {
+            throw new TypeError("RFC-3339 date-times must be expressed as strings");
+        }
+        const match = RFC3339.exec(value);
+        if (!match) {
+            throw new TypeError("Invalid RFC-3339 date-time value");
+        }
+        const [_, yearStr, monthStr, dayStr, hours, minutes, seconds, fractionalMilliseconds] = match;
+        const year = strictParseShort(stripLeadingZeroes(yearStr));
+        const month = parseDateValue(monthStr, "month", 1, 12);
+        const day = parseDateValue(dayStr, "day", 1, 31);
+        return buildDate(year, month, day, { hours, minutes, seconds, fractionalMilliseconds });
+    };
+    const RFC3339_WITH_OFFSET = new RegExp(/^(\d{4})-(\d{2})-(\d{2})[tT](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(([-+]\d{2}\:\d{2})|[zZ])$/);
+    const parseRfc3339DateTimeWithOffset = (value) => {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+        if (typeof value !== "string") {
+            throw new TypeError("RFC-3339 date-times must be expressed as strings");
+        }
+        const match = RFC3339_WITH_OFFSET.exec(value);
+        if (!match) {
+            throw new TypeError("Invalid RFC-3339 date-time value");
+        }
+        const [_, yearStr, monthStr, dayStr, hours, minutes, seconds, fractionalMilliseconds, offsetStr] = match;
+        const year = strictParseShort(stripLeadingZeroes(yearStr));
+        const month = parseDateValue(monthStr, "month", 1, 12);
+        const day = parseDateValue(dayStr, "day", 1, 31);
+        const date = buildDate(year, month, day, { hours, minutes, seconds, fractionalMilliseconds });
+        if (offsetStr.toUpperCase() != "Z") {
+            date.setTime(date.getTime() - parseOffsetToMilliseconds(offsetStr));
+        }
+        return date;
+    };
+    const buildDate = (year, month, day, time) => {
+        const adjustedMonth = month - 1;
+        validateDayOfMonth(year, adjustedMonth, day);
+        return new Date(Date.UTC(year, adjustedMonth, day, parseDateValue(time.hours, "hour", 0, 23), parseDateValue(time.minutes, "minute", 0, 59), parseDateValue(time.seconds, "seconds", 0, 60), parseMilliseconds(time.fractionalMilliseconds)));
+    };
+    const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const validateDayOfMonth = (year, month, day) => {
+        let maxDays = DAYS_IN_MONTH[month];
+        if (month === 1 && isLeapYear(year)) {
+            maxDays = 29;
+        }
+        if (day > maxDays) {
+            throw new TypeError(`Invalid day for ${MONTHS[month]} in ${year}: ${day}`);
+        }
+    };
+    const isLeapYear = (year) => {
+        return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    };
+    const parseDateValue = (value, type, lower, upper) => {
+        const dateVal = strictParseByte(stripLeadingZeroes(value));
+        if (dateVal < lower || dateVal > upper) {
+            throw new TypeError(`${type} must be between ${lower} and ${upper}, inclusive`);
+        }
+        return dateVal;
+    };
+    const parseMilliseconds = (value) => {
+        if (value === null || value === undefined) {
+            return 0;
+        }
+        return strictParseFloat32("0." + value) * 1000;
+    };
+    const parseOffsetToMilliseconds = (value) => {
+        const directionStr = value[0];
+        let direction = 1;
+        if (directionStr == "+") {
+            direction = 1;
+        }
+        else if (directionStr == "-") {
+            direction = -1;
+        }
+        else {
+            throw new TypeError(`Offset direction, ${directionStr}, must be "+" or "-"`);
+        }
+        const hour = Number(value.substring(1, 3));
+        const minute = Number(value.substring(4, 6));
+        return direction * (hour * 60 + minute) * 60 * 1000;
+    };
+    const stripLeadingZeroes = (value) => {
+        let idx = 0;
+        while (idx < value.length - 1 && value.charAt(idx) === "0") {
+            idx++;
+        }
+        if (idx === 0) {
+            return value;
+        }
+        return value.slice(idx);
     };
 
     const isStreamingPayload = (request) => request?.body instanceof stream.Readable ||
@@ -7824,8 +7216,8 @@ ${toHex(hashedRequest)}`;
 
     const defaultBedrockRuntimeHttpAuthSchemeParametersProvider = async (config, context, input) => {
         return {
-            operation: getSmithyContext(context).operation,
-            region: (await normalizeProvider$1(config.region)()) ||
+            operation: getSmithyContext$1(context).operation,
+            region: (await normalizeProvider$2(config.region)()) ||
                 (() => {
                     throw new Error("expected `region` to be configured for `aws.auth#sigv4`");
                 })(),
@@ -7858,7 +7250,7 @@ ${toHex(hashedRequest)}`;
     const resolveHttpAuthSchemeConfig$3 = (config) => {
         const config_0 = resolveAwsSdkSigV4Config(config);
         return Object.assign(config_0, {
-            authSchemePreference: normalizeProvider$1(config.authSchemePreference ?? []),
+            authSchemePreference: normalizeProvider$2(config.authSchemePreference ?? []),
         });
     };
 
@@ -7878,7 +7270,7 @@ ${toHex(hashedRequest)}`;
 
     var name$2 = "@aws-sdk/client-bedrock-runtime";
     var description$2 = "AWS SDK for JavaScript Bedrock Runtime Client for Node.js, Browser and React Native";
-    var version$2 = "3.804.0";
+    var version$2 = "3.817.0";
     var scripts$2 = {
     	build: "concurrently 'yarn:build:cjs' 'yarn:build:es' 'yarn:build:types'",
     	"build:cjs": "node ../../scripts/compilation/inline client-bedrock-runtime",
@@ -7897,21 +7289,21 @@ ${toHex(hashedRequest)}`;
     var dependencies$2 = {
     	"@aws-crypto/sha256-browser": "5.2.0",
     	"@aws-crypto/sha256-js": "5.2.0",
-    	"@aws-sdk/core": "3.804.0",
-    	"@aws-sdk/credential-provider-node": "3.804.0",
+    	"@aws-sdk/core": "3.816.0",
+    	"@aws-sdk/credential-provider-node": "3.817.0",
     	"@aws-sdk/eventstream-handler-node": "3.804.0",
     	"@aws-sdk/middleware-eventstream": "3.804.0",
     	"@aws-sdk/middleware-host-header": "3.804.0",
     	"@aws-sdk/middleware-logger": "3.804.0",
     	"@aws-sdk/middleware-recursion-detection": "3.804.0",
-    	"@aws-sdk/middleware-user-agent": "3.804.0",
-    	"@aws-sdk/region-config-resolver": "3.804.0",
+    	"@aws-sdk/middleware-user-agent": "3.816.0",
+    	"@aws-sdk/region-config-resolver": "3.808.0",
     	"@aws-sdk/types": "3.804.0",
-    	"@aws-sdk/util-endpoints": "3.804.0",
+    	"@aws-sdk/util-endpoints": "3.808.0",
     	"@aws-sdk/util-user-agent-browser": "3.804.0",
-    	"@aws-sdk/util-user-agent-node": "3.804.0",
-    	"@smithy/config-resolver": "^4.1.0",
-    	"@smithy/core": "^3.3.1",
+    	"@aws-sdk/util-user-agent-node": "3.816.0",
+    	"@smithy/config-resolver": "^4.1.2",
+    	"@smithy/core": "^3.3.3",
     	"@smithy/eventstream-serde-browser": "^4.0.2",
     	"@smithy/eventstream-serde-config-resolver": "^4.1.0",
     	"@smithy/eventstream-serde-node": "^4.0.2",
@@ -7919,22 +7311,22 @@ ${toHex(hashedRequest)}`;
     	"@smithy/hash-node": "^4.0.2",
     	"@smithy/invalid-dependency": "^4.0.2",
     	"@smithy/middleware-content-length": "^4.0.2",
-    	"@smithy/middleware-endpoint": "^4.1.2",
-    	"@smithy/middleware-retry": "^4.1.3",
-    	"@smithy/middleware-serde": "^4.0.3",
+    	"@smithy/middleware-endpoint": "^4.1.6",
+    	"@smithy/middleware-retry": "^4.1.7",
+    	"@smithy/middleware-serde": "^4.0.5",
     	"@smithy/middleware-stack": "^4.0.2",
-    	"@smithy/node-config-provider": "^4.0.2",
+    	"@smithy/node-config-provider": "^4.1.1",
     	"@smithy/node-http-handler": "^4.0.4",
     	"@smithy/protocol-http": "^5.1.0",
-    	"@smithy/smithy-client": "^4.2.2",
+    	"@smithy/smithy-client": "^4.2.6",
     	"@smithy/types": "^4.2.0",
     	"@smithy/url-parser": "^4.0.2",
     	"@smithy/util-base64": "^4.0.0",
     	"@smithy/util-body-length-browser": "^4.0.0",
     	"@smithy/util-body-length-node": "^4.0.0",
-    	"@smithy/util-defaults-mode-browser": "^4.0.10",
-    	"@smithy/util-defaults-mode-node": "^4.0.10",
-    	"@smithy/util-endpoints": "^3.0.2",
+    	"@smithy/util-defaults-mode-browser": "^4.0.14",
+    	"@smithy/util-defaults-mode-node": "^4.0.14",
+    	"@smithy/util-endpoints": "^3.0.4",
     	"@smithy/util-middleware": "^4.0.2",
     	"@smithy/util-retry": "^4.0.3",
     	"@smithy/util-stream": "^4.2.0",
@@ -8028,7 +7420,7 @@ ${toHex(hashedRequest)}`;
             setCredentialFeature(credentials, "CREDENTIALS_ENV_VARS", "g");
             return credentials;
         }
-        throw new CredentialsProviderError("Unable to find environment variable credentials.", { logger: init?.logger });
+        throw new CredentialsProviderError$2("Unable to find environment variable credentials.", { logger: init?.logger });
     };
 
     var index$8 = /*#__PURE__*/Object.freeze({
@@ -8042,17 +7434,201 @@ ${toHex(hashedRequest)}`;
         fromEnv: fromEnv
     });
 
+    const homeDirCache = {};
+    const getHomeDirCacheKey = () => {
+        if (process && process.geteuid) {
+            return `${process.geteuid()}`;
+        }
+        return "DEFAULT";
+    };
+    const getHomeDir = () => {
+        const { HOME, USERPROFILE, HOMEPATH, HOMEDRIVE = `C:${path.sep}` } = process.env;
+        if (HOME)
+            return HOME;
+        if (USERPROFILE)
+            return USERPROFILE;
+        if (HOMEPATH)
+            return `${HOMEDRIVE}${HOMEPATH}`;
+        const homeDirCacheKey = getHomeDirCacheKey();
+        if (!homeDirCache[homeDirCacheKey])
+            homeDirCache[homeDirCacheKey] = os.homedir();
+        return homeDirCache[homeDirCacheKey];
+    };
+
+    const ENV_PROFILE = "AWS_PROFILE";
+    const DEFAULT_PROFILE = "default";
+    const getProfileName = (init) => init.profile || process.env[ENV_PROFILE] || DEFAULT_PROFILE;
+
+    const getSSOTokenFilepath = (id) => {
+        const hasher = crypto$1.createHash("sha1");
+        const cacheName = hasher.update(id).digest("hex");
+        return path.join(getHomeDir(), ".aws", "sso", "cache", `${cacheName}.json`);
+    };
+
+    const { readFile: readFile$1 } = fs.promises;
+    const getSSOTokenFromFile = async (id) => {
+        const ssoTokenFilepath = getSSOTokenFilepath(id);
+        const ssoTokenText = await readFile$1(ssoTokenFilepath, "utf8");
+        return JSON.parse(ssoTokenText);
+    };
+
+    const getConfigData = (data) => Object.entries(data)
+        .filter(([key]) => {
+        const indexOfSeparator = key.indexOf(CONFIG_PREFIX_SEPARATOR);
+        if (indexOfSeparator === -1) {
+            return false;
+        }
+        return Object.values(IniSectionType$1).includes(key.substring(0, indexOfSeparator));
+    })
+        .reduce((acc, [key, value]) => {
+        const indexOfSeparator = key.indexOf(CONFIG_PREFIX_SEPARATOR);
+        const updatedKey = key.substring(0, indexOfSeparator) === IniSectionType$1.PROFILE ? key.substring(indexOfSeparator + 1) : key;
+        acc[updatedKey] = value;
+        return acc;
+    }, {
+        ...(data.default && { default: data.default }),
+    });
+
+    const ENV_CONFIG_PATH = "AWS_CONFIG_FILE";
+    const getConfigFilepath = () => process.env[ENV_CONFIG_PATH] || path.join(getHomeDir(), ".aws", "config");
+
+    const ENV_CREDENTIALS_PATH = "AWS_SHARED_CREDENTIALS_FILE";
+    const getCredentialsFilepath = () => process.env[ENV_CREDENTIALS_PATH] || path.join(getHomeDir(), ".aws", "credentials");
+
+    const prefixKeyRegex = /^([\w-]+)\s(["'])?([\w-@\+\.%:/]+)\2$/;
+    const profileNameBlockList = ["__proto__", "profile __proto__"];
+    const parseIni = (iniData) => {
+        const map = {};
+        let currentSection;
+        let currentSubSection;
+        for (const iniLine of iniData.split(/\r?\n/)) {
+            const trimmedLine = iniLine.split(/(^|\s)[;#]/)[0].trim();
+            const isSection = trimmedLine[0] === "[" && trimmedLine[trimmedLine.length - 1] === "]";
+            if (isSection) {
+                currentSection = undefined;
+                currentSubSection = undefined;
+                const sectionName = trimmedLine.substring(1, trimmedLine.length - 1);
+                const matches = prefixKeyRegex.exec(sectionName);
+                if (matches) {
+                    const [, prefix, , name] = matches;
+                    if (Object.values(IniSectionType$1).includes(prefix)) {
+                        currentSection = [prefix, name].join(CONFIG_PREFIX_SEPARATOR);
+                    }
+                }
+                else {
+                    currentSection = sectionName;
+                }
+                if (profileNameBlockList.includes(sectionName)) {
+                    throw new Error(`Found invalid profile name "${sectionName}"`);
+                }
+            }
+            else if (currentSection) {
+                const indexOfEqualsSign = trimmedLine.indexOf("=");
+                if (![0, -1].includes(indexOfEqualsSign)) {
+                    const [name, value] = [
+                        trimmedLine.substring(0, indexOfEqualsSign).trim(),
+                        trimmedLine.substring(indexOfEqualsSign + 1).trim(),
+                    ];
+                    if (value === "") {
+                        currentSubSection = name;
+                    }
+                    else {
+                        if (currentSubSection && iniLine.trimStart() === iniLine) {
+                            currentSubSection = undefined;
+                        }
+                        map[currentSection] = map[currentSection] || {};
+                        const key = currentSubSection ? [currentSubSection, name].join(CONFIG_PREFIX_SEPARATOR) : name;
+                        map[currentSection][key] = value;
+                    }
+                }
+            }
+        }
+        return map;
+    };
+
+    const { readFile } = fs.promises;
+    const filePromisesHash = {};
+    const slurpFile = (path, options) => {
+        if (!filePromisesHash[path] || options?.ignoreCache) {
+            filePromisesHash[path] = readFile(path, "utf8");
+        }
+        return filePromisesHash[path];
+    };
+
+    const swallowError$1 = () => ({});
+    const CONFIG_PREFIX_SEPARATOR = ".";
+    const loadSharedConfigFiles = async (init = {}) => {
+        const { filepath = getCredentialsFilepath(), configFilepath = getConfigFilepath() } = init;
+        const homeDir = getHomeDir();
+        const relativeHomeDirPrefix = "~/";
+        let resolvedFilepath = filepath;
+        if (filepath.startsWith(relativeHomeDirPrefix)) {
+            resolvedFilepath = path.join(homeDir, filepath.slice(2));
+        }
+        let resolvedConfigFilepath = configFilepath;
+        if (configFilepath.startsWith(relativeHomeDirPrefix)) {
+            resolvedConfigFilepath = path.join(homeDir, configFilepath.slice(2));
+        }
+        const parsedFiles = await Promise.all([
+            slurpFile(resolvedConfigFilepath, {
+                ignoreCache: init.ignoreCache,
+            })
+                .then(parseIni)
+                .then(getConfigData)
+                .catch(swallowError$1),
+            slurpFile(resolvedFilepath, {
+                ignoreCache: init.ignoreCache,
+            })
+                .then(parseIni)
+                .catch(swallowError$1),
+        ]);
+        return {
+            configFile: parsedFiles[0],
+            credentialsFile: parsedFiles[1],
+        };
+    };
+
+    const getSsoSessionData = (data) => Object.entries(data)
+        .filter(([key]) => key.startsWith(IniSectionType$1.SSO_SESSION + CONFIG_PREFIX_SEPARATOR))
+        .reduce((acc, [key, value]) => ({ ...acc, [key.substring(key.indexOf(CONFIG_PREFIX_SEPARATOR) + 1)]: value }), {});
+
+    const swallowError = () => ({});
+    const loadSsoSessionData = async (init = {}) => slurpFile(init.configFilepath ?? getConfigFilepath())
+        .then(parseIni)
+        .then(getSsoSessionData)
+        .catch(swallowError);
+
+    const mergeConfigFiles = (...files) => {
+        const merged = {};
+        for (const file of files) {
+            for (const [key, values] of Object.entries(file)) {
+                if (merged[key] !== undefined) {
+                    Object.assign(merged[key], values);
+                }
+                else {
+                    merged[key] = values;
+                }
+            }
+        }
+        return merged;
+    };
+
+    const parseKnownFiles = async (init) => {
+        const parsedFiles = await loadSharedConfigFiles(init);
+        return mergeConfigFiles(parsedFiles.configFile, parsedFiles.credentialsFile);
+    };
+
     const ENV_IMDS_DISABLED$1 = "AWS_EC2_METADATA_DISABLED";
     const remoteProvider = async (init) => {
         const { ENV_CMDS_FULL_URI, ENV_CMDS_RELATIVE_URI, fromContainerMetadata, fromInstanceMetadata } = await Promise.resolve().then(function () { return index$7; });
         if (process.env[ENV_CMDS_RELATIVE_URI] || process.env[ENV_CMDS_FULL_URI]) {
             init.logger?.debug("@aws-sdk/credential-provider-node - remoteProvider::fromHttp/fromContainerMetadata");
             const { fromHttp } = await Promise.resolve().then(function () { return index$6; });
-            return chain(fromHttp(init), fromContainerMetadata(init));
+            return chain$1(fromHttp(init), fromContainerMetadata(init));
         }
         if (process.env[ENV_IMDS_DISABLED$1] && process.env[ENV_IMDS_DISABLED$1] !== "false") {
             return async () => {
-                throw new CredentialsProviderError("EC2 Instance Metadata Service access disabled", { logger: init.logger });
+                throw new CredentialsProviderError$2("EC2 Instance Metadata Service access disabled", { logger: init.logger });
             };
         }
         init.logger?.debug("@aws-sdk/credential-provider-node - remoteProvider::fromInstanceMetadata");
@@ -8060,7 +7636,7 @@ ${toHex(hashedRequest)}`;
     };
 
     let multipleCredentialSourceWarningEmitted = false;
-    const defaultProvider = (init = {}) => memoize(chain(async () => {
+    const defaultProvider = (init = {}) => memoize$2(chain$1(async () => {
         const profile = init.profile ?? process.env[ENV_PROFILE];
         if (profile) {
             const envStaticCredentialsAreSet = process.env[ENV_KEY] && process.env[ENV_SECRET];
@@ -8079,7 +7655,7 @@ ${toHex(hashedRequest)}`;
                     multipleCredentialSourceWarningEmitted = true;
                 }
             }
-            throw new CredentialsProviderError("AWS_PROFILE is set, skipping fromEnv provider.", {
+            throw new CredentialsProviderError$2("AWS_PROFILE is set, skipping fromEnv provider.", {
                 logger: init.logger,
                 tryNextLink: true,
             });
@@ -8090,7 +7666,7 @@ ${toHex(hashedRequest)}`;
         init.logger?.debug("@aws-sdk/credential-provider-node - defaultProvider::fromSSO");
         const { ssoStartUrl, ssoAccountId, ssoRegion, ssoRoleName, ssoSession } = init;
         if (!ssoStartUrl && !ssoAccountId && !ssoRegion && !ssoRoleName && !ssoSession) {
-            throw new CredentialsProviderError("Skipping SSO provider in default chain (inputs do not include SSO fields).", { logger: init.logger });
+            throw new CredentialsProviderError$2("Skipping SSO provider in default chain (inputs do not include SSO fields).", { logger: init.logger });
         }
         const { fromSSO } = await Promise.resolve().then(function () { return index$5; });
         return fromSSO(init)();
@@ -8110,7 +7686,7 @@ ${toHex(hashedRequest)}`;
         init.logger?.debug("@aws-sdk/credential-provider-node - defaultProvider::remoteProvider");
         return (await remoteProvider(init))();
     }, async () => {
-        throw new CredentialsProviderError("Could not load credentials from any providers", {
+        throw new CredentialsProviderError$2("Could not load credentials from any providers", {
             tryNextLink: false,
             logger: init.logger,
         });
@@ -8976,6 +8552,710 @@ ${toHex(hashedRequest)}`;
         return fromArrayBuffer(toCast);
     }
 
+    function buildQueryString(query) {
+        const parts = [];
+        for (let key of Object.keys(query).sort()) {
+            const value = query[key];
+            key = escapeUri(key);
+            if (Array.isArray(value)) {
+                for (let i = 0, iLen = value.length; i < iLen; i++) {
+                    parts.push(`${key}=${escapeUri(value[i])}`);
+                }
+            }
+            else {
+                let qsEntry = key;
+                if (value || typeof value === "string") {
+                    qsEntry += `=${escapeUri(value)}`;
+                }
+                parts.push(qsEntry);
+            }
+        }
+        return parts.join("&");
+    }
+
+    const NODEJS_TIMEOUT_ERROR_CODES = ["ECONNRESET", "EPIPE", "ETIMEDOUT"];
+
+    const getTransformedHeaders = (headers) => {
+        const transformedHeaders = {};
+        for (const name of Object.keys(headers)) {
+            const headerValues = headers[name];
+            transformedHeaders[name] = Array.isArray(headerValues) ? headerValues.join(",") : headerValues;
+        }
+        return transformedHeaders;
+    };
+
+    const timing = {
+        setTimeout: (cb, ms) => setTimeout(cb, ms),
+        clearTimeout: (timeoutId) => clearTimeout(timeoutId),
+    };
+
+    const DEFER_EVENT_LISTENER_TIME$2 = 1000;
+    const setConnectionTimeout = (request, reject, timeoutInMs = 0) => {
+        if (!timeoutInMs) {
+            return -1;
+        }
+        const registerTimeout = (offset) => {
+            const timeoutId = timing.setTimeout(() => {
+                request.destroy();
+                reject(Object.assign(new Error(`Socket timed out without establishing a connection within ${timeoutInMs} ms`), {
+                    name: "TimeoutError",
+                }));
+            }, timeoutInMs - offset);
+            const doWithSocket = (socket) => {
+                if (socket?.connecting) {
+                    socket.on("connect", () => {
+                        timing.clearTimeout(timeoutId);
+                    });
+                }
+                else {
+                    timing.clearTimeout(timeoutId);
+                }
+            };
+            if (request.socket) {
+                doWithSocket(request.socket);
+            }
+            else {
+                request.on("socket", doWithSocket);
+            }
+        };
+        if (timeoutInMs < 2000) {
+            registerTimeout(0);
+            return 0;
+        }
+        return timing.setTimeout(registerTimeout.bind(null, DEFER_EVENT_LISTENER_TIME$2), DEFER_EVENT_LISTENER_TIME$2);
+    };
+
+    const DEFER_EVENT_LISTENER_TIME$1 = 3000;
+    const setSocketKeepAlive = (request, { keepAlive, keepAliveMsecs }, deferTimeMs = DEFER_EVENT_LISTENER_TIME$1) => {
+        if (keepAlive !== true) {
+            return -1;
+        }
+        const registerListener = () => {
+            if (request.socket) {
+                request.socket.setKeepAlive(keepAlive, keepAliveMsecs || 0);
+            }
+            else {
+                request.on("socket", (socket) => {
+                    socket.setKeepAlive(keepAlive, keepAliveMsecs || 0);
+                });
+            }
+        };
+        if (deferTimeMs === 0) {
+            registerListener();
+            return 0;
+        }
+        return timing.setTimeout(registerListener, deferTimeMs);
+    };
+
+    const DEFER_EVENT_LISTENER_TIME = 3000;
+    const setSocketTimeout = (request, reject, timeoutInMs = DEFAULT_REQUEST_TIMEOUT) => {
+        const registerTimeout = (offset) => {
+            const timeout = timeoutInMs - offset;
+            const onTimeout = () => {
+                request.destroy();
+                reject(Object.assign(new Error(`Connection timed out after ${timeoutInMs} ms`), { name: "TimeoutError" }));
+            };
+            if (request.socket) {
+                request.socket.setTimeout(timeout, onTimeout);
+                request.on("close", () => request.socket?.removeListener("timeout", onTimeout));
+            }
+            else {
+                request.setTimeout(timeout, onTimeout);
+            }
+        };
+        if (0 < timeoutInMs && timeoutInMs < 6000) {
+            registerTimeout(0);
+            return 0;
+        }
+        return timing.setTimeout(registerTimeout.bind(null, timeoutInMs === 0 ? 0 : DEFER_EVENT_LISTENER_TIME), DEFER_EVENT_LISTENER_TIME);
+    };
+
+    const MIN_WAIT_TIME = 6000;
+    async function writeRequestBody(httpRequest, request, maxContinueTimeoutMs = MIN_WAIT_TIME) {
+        const headers = request.headers ?? {};
+        const expect = headers["Expect"] || headers["expect"];
+        let timeoutId = -1;
+        let sendBody = true;
+        if (expect === "100-continue") {
+            sendBody = await Promise.race([
+                new Promise((resolve) => {
+                    timeoutId = Number(timing.setTimeout(() => resolve(true), Math.max(MIN_WAIT_TIME, maxContinueTimeoutMs)));
+                }),
+                new Promise((resolve) => {
+                    httpRequest.on("continue", () => {
+                        timing.clearTimeout(timeoutId);
+                        resolve(true);
+                    });
+                    httpRequest.on("response", () => {
+                        timing.clearTimeout(timeoutId);
+                        resolve(false);
+                    });
+                    httpRequest.on("error", () => {
+                        timing.clearTimeout(timeoutId);
+                        resolve(false);
+                    });
+                }),
+            ]);
+        }
+        if (sendBody) {
+            writeBody(httpRequest, request.body);
+        }
+    }
+    function writeBody(httpRequest, body) {
+        if (body instanceof stream.Readable) {
+            body.pipe(httpRequest);
+            return;
+        }
+        if (body) {
+            if (Buffer.isBuffer(body) || typeof body === "string") {
+                httpRequest.end(body);
+                return;
+            }
+            const uint8 = body;
+            if (typeof uint8 === "object" &&
+                uint8.buffer &&
+                typeof uint8.byteOffset === "number" &&
+                typeof uint8.byteLength === "number") {
+                httpRequest.end(Buffer.from(uint8.buffer, uint8.byteOffset, uint8.byteLength));
+                return;
+            }
+            httpRequest.end(Buffer.from(body));
+            return;
+        }
+        httpRequest.end();
+    }
+
+    const DEFAULT_REQUEST_TIMEOUT = 0;
+    class NodeHttpHandler {
+        static create(instanceOrOptions) {
+            if (typeof instanceOrOptions?.handle === "function") {
+                return instanceOrOptions;
+            }
+            return new NodeHttpHandler(instanceOrOptions);
+        }
+        static checkSocketUsage(agent, socketWarningTimestamp, logger = console) {
+            const { sockets, requests, maxSockets } = agent;
+            if (typeof maxSockets !== "number" || maxSockets === Infinity) {
+                return socketWarningTimestamp;
+            }
+            const interval = 15000;
+            if (Date.now() - interval < socketWarningTimestamp) {
+                return socketWarningTimestamp;
+            }
+            if (sockets && requests) {
+                for (const origin in sockets) {
+                    const socketsInUse = sockets[origin]?.length ?? 0;
+                    const requestsEnqueued = requests[origin]?.length ?? 0;
+                    if (socketsInUse >= maxSockets && requestsEnqueued >= 2 * maxSockets) {
+                        logger?.warn?.(`@smithy/node-http-handler:WARN - socket usage at capacity=${socketsInUse} and ${requestsEnqueued} additional requests are enqueued.
+See https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/node-configuring-maxsockets.html
+or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler config.`);
+                        return Date.now();
+                    }
+                }
+            }
+            return socketWarningTimestamp;
+        }
+        constructor(options) {
+            this.socketWarningTimestamp = 0;
+            this.metadata = { handlerProtocol: "http/1.1" };
+            this.configProvider = new Promise((resolve, reject) => {
+                if (typeof options === "function") {
+                    options()
+                        .then((_options) => {
+                        resolve(this.resolveDefaultConfig(_options));
+                    })
+                        .catch(reject);
+                }
+                else {
+                    resolve(this.resolveDefaultConfig(options));
+                }
+            });
+        }
+        resolveDefaultConfig(options) {
+            const { requestTimeout, connectionTimeout, socketTimeout, socketAcquisitionWarningTimeout, httpAgent, httpsAgent } = options || {};
+            const keepAlive = true;
+            const maxSockets = 50;
+            return {
+                connectionTimeout,
+                requestTimeout: requestTimeout ?? socketTimeout,
+                socketAcquisitionWarningTimeout,
+                httpAgent: (() => {
+                    if (httpAgent instanceof http.Agent || typeof httpAgent?.destroy === "function") {
+                        return httpAgent;
+                    }
+                    return new http.Agent({ keepAlive, maxSockets, ...httpAgent });
+                })(),
+                httpsAgent: (() => {
+                    if (httpsAgent instanceof https.Agent || typeof httpsAgent?.destroy === "function") {
+                        return httpsAgent;
+                    }
+                    return new https.Agent({ keepAlive, maxSockets, ...httpsAgent });
+                })(),
+                logger: console,
+            };
+        }
+        destroy() {
+            this.config?.httpAgent?.destroy();
+            this.config?.httpsAgent?.destroy();
+        }
+        async handle(request, { abortSignal } = {}) {
+            if (!this.config) {
+                this.config = await this.configProvider;
+            }
+            return new Promise((_resolve, _reject) => {
+                let writeRequestBodyPromise = undefined;
+                const timeouts = [];
+                const resolve = async (arg) => {
+                    await writeRequestBodyPromise;
+                    timeouts.forEach(timing.clearTimeout);
+                    _resolve(arg);
+                };
+                const reject = async (arg) => {
+                    await writeRequestBodyPromise;
+                    timeouts.forEach(timing.clearTimeout);
+                    _reject(arg);
+                };
+                if (!this.config) {
+                    throw new Error("Node HTTP request handler config is not resolved");
+                }
+                if (abortSignal?.aborted) {
+                    const abortError = new Error("Request aborted");
+                    abortError.name = "AbortError";
+                    reject(abortError);
+                    return;
+                }
+                const isSSL = request.protocol === "https:";
+                const agent = isSSL ? this.config.httpsAgent : this.config.httpAgent;
+                timeouts.push(timing.setTimeout(() => {
+                    this.socketWarningTimestamp = NodeHttpHandler.checkSocketUsage(agent, this.socketWarningTimestamp, this.config.logger);
+                }, this.config.socketAcquisitionWarningTimeout ??
+                    (this.config.requestTimeout ?? 2000) + (this.config.connectionTimeout ?? 1000)));
+                const queryString = buildQueryString(request.query || {});
+                let auth = undefined;
+                if (request.username != null || request.password != null) {
+                    const username = request.username ?? "";
+                    const password = request.password ?? "";
+                    auth = `${username}:${password}`;
+                }
+                let path = request.path;
+                if (queryString) {
+                    path += `?${queryString}`;
+                }
+                if (request.fragment) {
+                    path += `#${request.fragment}`;
+                }
+                let hostname = request.hostname ?? "";
+                if (hostname[0] === "[" && hostname.endsWith("]")) {
+                    hostname = request.hostname.slice(1, -1);
+                }
+                else {
+                    hostname = request.hostname;
+                }
+                const nodeHttpsOptions = {
+                    headers: request.headers,
+                    host: hostname,
+                    method: request.method,
+                    path,
+                    port: request.port,
+                    agent,
+                    auth,
+                };
+                const requestFunc = isSSL ? https.request : http.request;
+                const req = requestFunc(nodeHttpsOptions, (res) => {
+                    const httpResponse = new HttpResponse$2({
+                        statusCode: res.statusCode || -1,
+                        reason: res.statusMessage,
+                        headers: getTransformedHeaders(res.headers),
+                        body: res,
+                    });
+                    resolve({ response: httpResponse });
+                });
+                req.on("error", (err) => {
+                    if (NODEJS_TIMEOUT_ERROR_CODES.includes(err.code)) {
+                        reject(Object.assign(err, { name: "TimeoutError" }));
+                    }
+                    else {
+                        reject(err);
+                    }
+                });
+                if (abortSignal) {
+                    const onAbort = () => {
+                        req.destroy();
+                        const abortError = new Error("Request aborted");
+                        abortError.name = "AbortError";
+                        reject(abortError);
+                    };
+                    if (typeof abortSignal.addEventListener === "function") {
+                        const signal = abortSignal;
+                        signal.addEventListener("abort", onAbort, { once: true });
+                        req.once("close", () => signal.removeEventListener("abort", onAbort));
+                    }
+                    else {
+                        abortSignal.onabort = onAbort;
+                    }
+                }
+                timeouts.push(setConnectionTimeout(req, reject, this.config.connectionTimeout));
+                timeouts.push(setSocketTimeout(req, reject, this.config.requestTimeout));
+                const httpAgent = nodeHttpsOptions.agent;
+                if (typeof httpAgent === "object" && "keepAlive" in httpAgent) {
+                    timeouts.push(setSocketKeepAlive(req, {
+                        keepAlive: httpAgent.keepAlive,
+                        keepAliveMsecs: httpAgent.keepAliveMsecs,
+                    }));
+                }
+                writeRequestBodyPromise = writeRequestBody(req, request, this.config.requestTimeout).catch((e) => {
+                    timeouts.forEach(timing.clearTimeout);
+                    return _reject(e);
+                });
+            });
+        }
+        updateHttpClientConfig(key, value) {
+            this.config = undefined;
+            this.configProvider = this.configProvider.then((config) => {
+                return {
+                    ...config,
+                    [key]: value,
+                };
+            });
+        }
+        httpHandlerConfigs() {
+            return this.config ?? {};
+        }
+    }
+
+    class NodeHttp2ConnectionPool {
+        constructor(sessions) {
+            this.sessions = [];
+            this.sessions = sessions ?? [];
+        }
+        poll() {
+            if (this.sessions.length > 0) {
+                return this.sessions.shift();
+            }
+        }
+        offerLast(session) {
+            this.sessions.push(session);
+        }
+        contains(session) {
+            return this.sessions.includes(session);
+        }
+        remove(session) {
+            this.sessions = this.sessions.filter((s) => s !== session);
+        }
+        [Symbol.iterator]() {
+            return this.sessions[Symbol.iterator]();
+        }
+        destroy(connection) {
+            for (const session of this.sessions) {
+                if (session === connection) {
+                    if (!session.destroyed) {
+                        session.destroy();
+                    }
+                }
+            }
+        }
+    }
+
+    class NodeHttp2ConnectionManager {
+        constructor(config) {
+            this.sessionCache = new Map();
+            this.config = config;
+            if (this.config.maxConcurrency && this.config.maxConcurrency <= 0) {
+                throw new RangeError("maxConcurrency must be greater than zero.");
+            }
+        }
+        lease(requestContext, connectionConfiguration) {
+            const url = this.getUrlString(requestContext);
+            const existingPool = this.sessionCache.get(url);
+            if (existingPool) {
+                const existingSession = existingPool.poll();
+                if (existingSession && !this.config.disableConcurrency) {
+                    return existingSession;
+                }
+            }
+            const session = http2.connect(url);
+            if (this.config.maxConcurrency) {
+                session.settings({ maxConcurrentStreams: this.config.maxConcurrency }, (err) => {
+                    if (err) {
+                        throw new Error("Fail to set maxConcurrentStreams to " +
+                            this.config.maxConcurrency +
+                            "when creating new session for " +
+                            requestContext.destination.toString());
+                    }
+                });
+            }
+            session.unref();
+            const destroySessionCb = () => {
+                session.destroy();
+                this.deleteSession(url, session);
+            };
+            session.on("goaway", destroySessionCb);
+            session.on("error", destroySessionCb);
+            session.on("frameError", destroySessionCb);
+            session.on("close", () => this.deleteSession(url, session));
+            if (connectionConfiguration.requestTimeout) {
+                session.setTimeout(connectionConfiguration.requestTimeout, destroySessionCb);
+            }
+            const connectionPool = this.sessionCache.get(url) || new NodeHttp2ConnectionPool();
+            connectionPool.offerLast(session);
+            this.sessionCache.set(url, connectionPool);
+            return session;
+        }
+        deleteSession(authority, session) {
+            const existingConnectionPool = this.sessionCache.get(authority);
+            if (!existingConnectionPool) {
+                return;
+            }
+            if (!existingConnectionPool.contains(session)) {
+                return;
+            }
+            existingConnectionPool.remove(session);
+            this.sessionCache.set(authority, existingConnectionPool);
+        }
+        release(requestContext, session) {
+            const cacheKey = this.getUrlString(requestContext);
+            this.sessionCache.get(cacheKey)?.offerLast(session);
+        }
+        destroy() {
+            for (const [key, connectionPool] of this.sessionCache) {
+                for (const session of connectionPool) {
+                    if (!session.destroyed) {
+                        session.destroy();
+                    }
+                    connectionPool.remove(session);
+                }
+                this.sessionCache.delete(key);
+            }
+        }
+        setMaxConcurrentStreams(maxConcurrentStreams) {
+            if (maxConcurrentStreams && maxConcurrentStreams <= 0) {
+                throw new RangeError("maxConcurrentStreams must be greater than zero.");
+            }
+            this.config.maxConcurrency = maxConcurrentStreams;
+        }
+        setDisableConcurrentStreams(disableConcurrentStreams) {
+            this.config.disableConcurrency = disableConcurrentStreams;
+        }
+        getUrlString(request) {
+            return request.destination.toString();
+        }
+    }
+
+    class NodeHttp2Handler {
+        static create(instanceOrOptions) {
+            if (typeof instanceOrOptions?.handle === "function") {
+                return instanceOrOptions;
+            }
+            return new NodeHttp2Handler(instanceOrOptions);
+        }
+        constructor(options) {
+            this.metadata = { handlerProtocol: "h2" };
+            this.connectionManager = new NodeHttp2ConnectionManager({});
+            this.configProvider = new Promise((resolve, reject) => {
+                if (typeof options === "function") {
+                    options()
+                        .then((opts) => {
+                        resolve(opts || {});
+                    })
+                        .catch(reject);
+                }
+                else {
+                    resolve(options || {});
+                }
+            });
+        }
+        destroy() {
+            this.connectionManager.destroy();
+        }
+        async handle(request, { abortSignal } = {}) {
+            if (!this.config) {
+                this.config = await this.configProvider;
+                this.connectionManager.setDisableConcurrentStreams(this.config.disableConcurrentStreams || false);
+                if (this.config.maxConcurrentStreams) {
+                    this.connectionManager.setMaxConcurrentStreams(this.config.maxConcurrentStreams);
+                }
+            }
+            const { requestTimeout, disableConcurrentStreams } = this.config;
+            return new Promise((_resolve, _reject) => {
+                let fulfilled = false;
+                let writeRequestBodyPromise = undefined;
+                const resolve = async (arg) => {
+                    await writeRequestBodyPromise;
+                    _resolve(arg);
+                };
+                const reject = async (arg) => {
+                    await writeRequestBodyPromise;
+                    _reject(arg);
+                };
+                if (abortSignal?.aborted) {
+                    fulfilled = true;
+                    const abortError = new Error("Request aborted");
+                    abortError.name = "AbortError";
+                    reject(abortError);
+                    return;
+                }
+                const { hostname, method, port, protocol, query } = request;
+                let auth = "";
+                if (request.username != null || request.password != null) {
+                    const username = request.username ?? "";
+                    const password = request.password ?? "";
+                    auth = `${username}:${password}@`;
+                }
+                const authority = `${protocol}//${auth}${hostname}${port ? `:${port}` : ""}`;
+                const requestContext = { destination: new URL(authority) };
+                const session = this.connectionManager.lease(requestContext, {
+                    requestTimeout: this.config?.sessionTimeout,
+                    disableConcurrentStreams: disableConcurrentStreams || false,
+                });
+                const rejectWithDestroy = (err) => {
+                    if (disableConcurrentStreams) {
+                        this.destroySession(session);
+                    }
+                    fulfilled = true;
+                    reject(err);
+                };
+                const queryString = buildQueryString(query || {});
+                let path = request.path;
+                if (queryString) {
+                    path += `?${queryString}`;
+                }
+                if (request.fragment) {
+                    path += `#${request.fragment}`;
+                }
+                const req = session.request({
+                    ...request.headers,
+                    [http2.constants.HTTP2_HEADER_PATH]: path,
+                    [http2.constants.HTTP2_HEADER_METHOD]: method,
+                });
+                session.ref();
+                req.on("response", (headers) => {
+                    const httpResponse = new HttpResponse$2({
+                        statusCode: headers[":status"] || -1,
+                        headers: getTransformedHeaders(headers),
+                        body: req,
+                    });
+                    fulfilled = true;
+                    resolve({ response: httpResponse });
+                    if (disableConcurrentStreams) {
+                        session.close();
+                        this.connectionManager.deleteSession(authority, session);
+                    }
+                });
+                if (requestTimeout) {
+                    req.setTimeout(requestTimeout, () => {
+                        req.close();
+                        const timeoutError = new Error(`Stream timed out because of no activity for ${requestTimeout} ms`);
+                        timeoutError.name = "TimeoutError";
+                        rejectWithDestroy(timeoutError);
+                    });
+                }
+                if (abortSignal) {
+                    const onAbort = () => {
+                        req.close();
+                        const abortError = new Error("Request aborted");
+                        abortError.name = "AbortError";
+                        rejectWithDestroy(abortError);
+                    };
+                    if (typeof abortSignal.addEventListener === "function") {
+                        const signal = abortSignal;
+                        signal.addEventListener("abort", onAbort, { once: true });
+                        req.once("close", () => signal.removeEventListener("abort", onAbort));
+                    }
+                    else {
+                        abortSignal.onabort = onAbort;
+                    }
+                }
+                req.on("frameError", (type, code, id) => {
+                    rejectWithDestroy(new Error(`Frame type id ${type} in stream id ${id} has failed with code ${code}.`));
+                });
+                req.on("error", rejectWithDestroy);
+                req.on("aborted", () => {
+                    rejectWithDestroy(new Error(`HTTP/2 stream is abnormally aborted in mid-communication with result code ${req.rstCode}.`));
+                });
+                req.on("close", () => {
+                    session.unref();
+                    if (disableConcurrentStreams) {
+                        session.destroy();
+                    }
+                    if (!fulfilled) {
+                        rejectWithDestroy(new Error("Unexpected error: http2 request did not get a response"));
+                    }
+                });
+                writeRequestBodyPromise = writeRequestBody(req, request, requestTimeout);
+            });
+        }
+        updateHttpClientConfig(key, value) {
+            this.config = undefined;
+            this.configProvider = this.configProvider.then((config) => {
+                return {
+                    ...config,
+                    [key]: value,
+                };
+            });
+        }
+        httpHandlerConfigs() {
+            return this.config ?? {};
+        }
+        destroySession(session) {
+            if (!session.destroyed) {
+                session.destroy();
+            }
+        }
+    }
+
+    class Collector extends stream.Writable {
+        constructor() {
+            super(...arguments);
+            this.bufferedBytes = [];
+        }
+        _write(chunk, encoding, callback) {
+            this.bufferedBytes.push(chunk);
+            callback();
+        }
+    }
+
+    const streamCollector$1 = (stream) => {
+        if (isReadableStreamInstance(stream)) {
+            return collectReadableStream(stream);
+        }
+        return new Promise((resolve, reject) => {
+            const collector = new Collector();
+            stream.pipe(collector);
+            stream.on("error", (err) => {
+                collector.end();
+                reject(err);
+            });
+            collector.on("error", reject);
+            collector.on("finish", function () {
+                const bytes = new Uint8Array(Buffer.concat(this.bufferedBytes));
+                resolve(bytes);
+            });
+        });
+    };
+    const isReadableStreamInstance = (stream) => typeof ReadableStream === "function" && stream instanceof ReadableStream;
+    async function collectReadableStream(stream) {
+        const chunks = [];
+        const reader = stream.getReader();
+        let isDone = false;
+        let length = 0;
+        while (!isDone) {
+            const { done, value } = await reader.read();
+            if (value) {
+                chunks.push(value);
+                length += value.length;
+            }
+            isDone = done;
+        }
+        const collected = new Uint8Array(length);
+        let offset = 0;
+        for (const chunk of chunks) {
+            collected.set(chunk, offset);
+            offset += chunk.length;
+        }
+        return collected;
+    }
+
     const calculateBodyLength = (body) => {
         if (!body) {
             return 0;
@@ -8999,6 +9279,55 @@ ${toHex(hashedRequest)}`;
             return fs.fstatSync(body.fd).size;
         }
         throw new Error(`Body Length computation failed for ${body}`);
+    };
+
+    var RETRY_MODES;
+    (function (RETRY_MODES) {
+        RETRY_MODES["STANDARD"] = "standard";
+        RETRY_MODES["ADAPTIVE"] = "adaptive";
+    })(RETRY_MODES || (RETRY_MODES = {}));
+    const DEFAULT_RETRY_MODE = RETRY_MODES.STANDARD;
+
+    function parseQueryString(querystring) {
+        const query = {};
+        querystring = querystring.replace(/^\?/, "");
+        if (querystring) {
+            for (const pair of querystring.split("&")) {
+                let [key, value = null] = pair.split("=");
+                key = decodeURIComponent(key);
+                if (value) {
+                    value = decodeURIComponent(value);
+                }
+                if (!(key in query)) {
+                    query[key] = value;
+                }
+                else if (Array.isArray(query[key])) {
+                    query[key].push(value);
+                }
+                else {
+                    query[key] = [query[key], value];
+                }
+            }
+        }
+        return query;
+    }
+
+    const parseUrl$1 = (url) => {
+        if (typeof url === "string") {
+            return parseUrl$1(new URL(url));
+        }
+        const { hostname, pathname, port, protocol, search } = url;
+        let query;
+        if (search) {
+            query = parseQueryString(search);
+        }
+        return {
+            hostname,
+            port: port ? parseInt(port) : undefined,
+            protocol,
+            path: pathname,
+            query,
+        };
     };
 
     const s$3 = "required", t$3 = "fn", u$3 = "argv", v$3 = "ref";
@@ -9036,10 +9365,37 @@ ${toHex(hashedRequest)}`;
             ],
             logger: config?.logger ?? new NoOpLogger(),
             serviceId: config?.serviceId ?? "Bedrock Runtime",
-            urlParser: config?.urlParser ?? parseUrl,
+            urlParser: config?.urlParser ?? parseUrl$1,
             utf8Decoder: config?.utf8Decoder ?? fromUtf8,
             utf8Encoder: config?.utf8Encoder ?? toUtf8,
         };
+    };
+
+    const memoize = (provider, isExpired, requiresRefresh) => {
+        let resolved;
+        let pending;
+        let hasResult;
+        const coalesceProvider = async () => {
+            if (!pending) {
+                pending = provider();
+            }
+            try {
+                resolved = await pending;
+                hasResult = true;
+            }
+            finally {
+                pending = undefined;
+            }
+            return resolved;
+        };
+        {
+            return async (options) => {
+                if (!hasResult || options?.forceRefresh) {
+                    resolved = await coalesceProvider();
+                }
+                return resolved;
+            };
+        }
     };
 
     const AWS_EXECUTION_ENV = "AWS_EXECUTION_ENV";
@@ -9115,13 +9471,16 @@ ${toHex(hashedRequest)}`;
         const defaultConfigProvider = () => defaultsMode().then(loadConfigsForDefaultMode);
         const clientSharedValues = getRuntimeConfig$7(config);
         emitWarningIfUnsupportedVersion$1(process.version);
-        const profileConfig = { profile: config?.profile };
+        const loaderConfig = {
+            profile: config?.profile,
+            logger: clientSharedValues.logger,
+        };
         return {
             ...clientSharedValues,
             ...config,
             runtime: "node",
             defaultsMode,
-            authSchemePreference: config?.authSchemePreference ?? loadConfig(NODE_AUTH_SCHEME_PREFERENCE_OPTIONS, profileConfig),
+            authSchemePreference: config?.authSchemePreference ?? loadConfig(NODE_AUTH_SCHEME_PREFERENCE_OPTIONS, loaderConfig),
             bodyLengthChecker: config?.bodyLengthChecker ?? calculateBodyLength,
             credentialDefaultProvider: config?.credentialDefaultProvider ?? defaultProvider,
             defaultUserAgentProvider: config?.defaultUserAgentProvider ??
@@ -9130,7 +9489,7 @@ ${toHex(hashedRequest)}`;
             eventStreamSerdeProvider: config?.eventStreamSerdeProvider ?? eventStreamSerdeProvider,
             maxAttempts: config?.maxAttempts ?? loadConfig(NODE_MAX_ATTEMPT_CONFIG_OPTIONS, config),
             region: config?.region ??
-                loadConfig(NODE_REGION_CONFIG_OPTIONS, { ...NODE_REGION_CONFIG_FILE_OPTIONS, ...profileConfig }),
+                loadConfig(NODE_REGION_CONFIG_OPTIONS, { ...NODE_REGION_CONFIG_FILE_OPTIONS, ...loaderConfig }),
             requestHandler: NodeHttp2Handler.create(config?.requestHandler ?? (async () => ({ ...(await defaultConfigProvider()), disableConcurrentStreams: true }))),
             retryMode: config?.retryMode ??
                 loadConfig({
@@ -9139,9 +9498,9 @@ ${toHex(hashedRequest)}`;
                 }, config),
             sha256: config?.sha256 ?? Hash.bind(null, "sha256"),
             streamCollector: config?.streamCollector ?? streamCollector$1,
-            useDualstackEndpoint: config?.useDualstackEndpoint ?? loadConfig(NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, profileConfig),
-            useFipsEndpoint: config?.useFipsEndpoint ?? loadConfig(NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, profileConfig),
-            userAgentAppId: config?.userAgentAppId ?? loadConfig(NODE_APP_ID_CONFIG_OPTIONS, profileConfig),
+            useDualstackEndpoint: config?.useDualstackEndpoint ?? loadConfig(NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+            useFipsEndpoint: config?.useFipsEndpoint ?? loadConfig(NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+            userAgentAppId: config?.userAgentAppId ?? loadConfig(NODE_APP_ID_CONFIG_OPTIONS, loaderConfig),
         };
     };
 
@@ -10980,6 +11339,37 @@ ${toHex(hashedRequest)}`;
       return new ChatAdapterBuilderImpl();
     };
 
+    class ProviderError extends Error {
+        constructor(message, options = true) {
+            let logger;
+            let tryNextLink = true;
+            if (typeof options === "boolean") {
+                logger = undefined;
+                tryNextLink = options;
+            }
+            else if (options != null && typeof options === "object") {
+                logger = options.logger;
+                tryNextLink = options.tryNextLink ?? true;
+            }
+            super(message);
+            this.name = "ProviderError";
+            this.tryNextLink = tryNextLink;
+            Object.setPrototypeOf(this, ProviderError.prototype);
+            logger?.debug?.(`@smithy/property-provider ${tryNextLink ? "->" : "(!)"} ${message}`);
+        }
+        static from(error, options = true) {
+            return Object.assign(new this(error.message, options), error);
+        }
+    }
+
+    class CredentialsProviderError extends ProviderError {
+        constructor(message, options = true) {
+            super(message, options);
+            this.name = "CredentialsProviderError";
+            Object.setPrototypeOf(this, CredentialsProviderError.prototype);
+        }
+    }
+
     function httpRequest(options) {
         return new Promise((resolve, reject) => {
             const req = http.request({
@@ -11120,6 +11510,24 @@ ${toHex(hashedRequest)}`;
             Object.setPrototypeOf(this, InstanceMetadataV1FallbackError.prototype);
         }
     }
+
+    const parseUrl = (url) => {
+        if (typeof url === "string") {
+            return parseUrl(new URL(url));
+        }
+        const { hostname, pathname, port, protocol, search } = url;
+        let query;
+        if (search) {
+            query = parseQueryString$1(search);
+        }
+        return {
+            hostname,
+            port: port ? parseInt(port) : undefined,
+            protocol,
+            path: pathname,
+            query,
+        };
+    };
 
     var Endpoint;
     (function (Endpoint) {
@@ -11381,14 +11789,177 @@ ${toHex(hashedRequest)}`;
                 return;
             }
         }
-        throw new CredentialsProviderError(`URL not accepted. It must either be HTTPS or match one of the following:
+        throw new CredentialsProviderError$2(`URL not accepted. It must either be HTTPS or match one of the following:
   - loopback CIDR 127.0.0.0/8 or [::1/128]
   - ECS container host 169.254.170.2
   - EKS container host 169.254.170.23 or [fd00:ec2::23]`, { logger });
     };
 
+    const isReadableStream = (stream) => typeof ReadableStream === "function" &&
+        (stream?.constructor?.name === ReadableStream.name || stream instanceof ReadableStream);
+
+    const streamCollector = async (stream) => {
+        if ((typeof Blob === "function" && stream instanceof Blob) || stream.constructor?.name === "Blob") {
+            if (Blob.prototype.arrayBuffer !== undefined) {
+                return new Uint8Array(await stream.arrayBuffer());
+            }
+            return collectBlob(stream);
+        }
+        return collectStream(stream);
+    };
+    async function collectBlob(blob) {
+        const base64 = await readToBase64(blob);
+        const arrayBuffer = fromBase64(base64);
+        return new Uint8Array(arrayBuffer);
+    }
+    async function collectStream(stream) {
+        const chunks = [];
+        const reader = stream.getReader();
+        let isDone = false;
+        let length = 0;
+        while (!isDone) {
+            const { done, value } = await reader.read();
+            if (value) {
+                chunks.push(value);
+                length += value.length;
+            }
+            isDone = done;
+        }
+        const collected = new Uint8Array(length);
+        let offset = 0;
+        for (const chunk of chunks) {
+            collected.set(chunk, offset);
+            offset += chunk.length;
+        }
+        return collected;
+    }
+    function readToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if (reader.readyState !== 2) {
+                    return reject(new Error("Reader aborted too early"));
+                }
+                const result = (reader.result ?? "");
+                const commaIndex = result.indexOf(",");
+                const dataOffset = commaIndex > -1 ? commaIndex + 1 : result.length;
+                resolve(result.substring(dataOffset));
+            };
+            reader.onabort = () => reject(new Error("Read aborted"));
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    const ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED$1 = "The stream has already been transformed.";
+    const sdkStreamMixin$1 = (stream) => {
+        if (!isBlobInstance(stream) && !isReadableStream(stream)) {
+            const name = stream?.__proto__?.constructor?.name || stream;
+            throw new Error(`Unexpected stream implementation, expect Blob or ReadableStream, got ${name}`);
+        }
+        let transformed = false;
+        const transformToByteArray = async () => {
+            if (transformed) {
+                throw new Error(ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED$1);
+            }
+            transformed = true;
+            return await streamCollector(stream);
+        };
+        const blobToWebStream = (blob) => {
+            if (typeof blob.stream !== "function") {
+                throw new Error("Cannot transform payload Blob to web stream. Please make sure the Blob.stream() is polyfilled.\n" +
+                    "If you are using React Native, this API is not yet supported, see: https://react-native.canny.io/feature-requests/p/fetch-streaming-body");
+            }
+            return blob.stream();
+        };
+        return Object.assign(stream, {
+            transformToByteArray: transformToByteArray,
+            transformToString: async (encoding) => {
+                const buf = await transformToByteArray();
+                if (encoding === "base64") {
+                    return toBase64(buf);
+                }
+                else if (encoding === "hex") {
+                    return toHex(buf);
+                }
+                else if (encoding === undefined || encoding === "utf8" || encoding === "utf-8") {
+                    return toUtf8(buf);
+                }
+                else if (typeof TextDecoder === "function") {
+                    return new TextDecoder(encoding).decode(buf);
+                }
+                else {
+                    throw new Error("TextDecoder is not available, please make sure polyfill is provided.");
+                }
+            },
+            transformToWebStream: () => {
+                if (transformed) {
+                    throw new Error(ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED$1);
+                }
+                transformed = true;
+                if (isBlobInstance(stream)) {
+                    return blobToWebStream(stream);
+                }
+                else if (isReadableStream(stream)) {
+                    return stream;
+                }
+                else {
+                    throw new Error(`Cannot transform payload to web stream, got ${stream}`);
+                }
+            },
+        });
+    };
+    const isBlobInstance = (stream) => typeof Blob === "function" && stream instanceof Blob;
+
+    const ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED = "The stream has already been transformed.";
+    const sdkStreamMixin = (stream$1) => {
+        if (!(stream$1 instanceof stream.Readable)) {
+            try {
+                return sdkStreamMixin$1(stream$1);
+            }
+            catch (e) {
+                const name = stream$1?.__proto__?.constructor?.name || stream$1;
+                throw new Error(`Unexpected stream implementation, expect Stream.Readable instance, got ${name}`);
+            }
+        }
+        let transformed = false;
+        const transformToByteArray = async () => {
+            if (transformed) {
+                throw new Error(ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED);
+            }
+            transformed = true;
+            return await streamCollector$1(stream$1);
+        };
+        return Object.assign(stream$1, {
+            transformToByteArray,
+            transformToString: async (encoding) => {
+                const buf = await transformToByteArray();
+                if (encoding === undefined || Buffer.isEncoding(encoding)) {
+                    return fromArrayBuffer(buf.buffer, buf.byteOffset, buf.byteLength).toString(encoding);
+                }
+                else {
+                    const decoder = new TextDecoder(encoding);
+                    return decoder.decode(buf);
+                }
+            },
+            transformToWebStream: () => {
+                if (transformed) {
+                    throw new Error(ERR_MSG_STREAM_HAS_BEEN_TRANSFORMED);
+                }
+                if (stream$1.readableFlowing !== null) {
+                    throw new Error("The stream has been consumed by other callbacks.");
+                }
+                if (typeof stream.Readable.toWeb !== "function") {
+                    throw new Error("Readable.toWeb() is not supported. Please ensure a polyfill is available.");
+                }
+                transformed = true;
+                return stream.Readable.toWeb(stream$1);
+            },
+        });
+    };
+
     function createGetRequest(url) {
-        return new HttpRequest({
+        return new HttpRequest$2({
             protocol: url.protocol,
             hostname: url.hostname,
             port: Number(url.port),
@@ -11409,7 +11980,7 @@ ${toHex(hashedRequest)}`;
                 typeof parsed.SecretAccessKey !== "string" ||
                 typeof parsed.Token !== "string" ||
                 typeof parsed.Expiration !== "string") {
-                throw new CredentialsProviderError("HTTP credential provider response not of the required format, an object matching: " +
+                throw new CredentialsProviderError$2("HTTP credential provider response not of the required format, an object matching: " +
                     "{ AccessKeyId: string, SecretAccessKey: string, Token: string, Expiration: string(rfc3339) }", { logger });
             }
             return {
@@ -11425,12 +11996,12 @@ ${toHex(hashedRequest)}`;
                 parsedBody = JSON.parse(str);
             }
             catch (e) { }
-            throw Object.assign(new CredentialsProviderError(`Server responded with status: ${response.statusCode}`, { logger }), {
+            throw Object.assign(new CredentialsProviderError$2(`Server responded with status: ${response.statusCode}`, { logger }), {
                 Code: parsedBody.Code,
                 Message: parsedBody.Message,
             });
         }
-        throw new CredentialsProviderError(`Server responded with status: ${response.statusCode}`, { logger });
+        throw new CredentialsProviderError$2(`Server responded with status: ${response.statusCode}`, { logger });
     }
 
     const retryWrapper = (toRetry, maxRetries, delayMs) => {
@@ -11477,7 +12048,7 @@ ${toHex(hashedRequest)}`;
             host = `${DEFAULT_LINK_LOCAL_HOST}${relative}`;
         }
         else {
-            throw new CredentialsProviderError(`No HTTP credential provider host provided.
+            throw new CredentialsProviderError$2(`No HTTP credential provider host provided.
 Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI.`, { logger: options.logger });
         }
         const url = new URL(host);
@@ -11499,7 +12070,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                 return getCredentials(result.response).then((creds) => setCredentialFeature(creds, "CREDENTIALS_HTTP", "z"));
             }
             catch (e) {
-                throw new CredentialsProviderError(String(e), { logger: options.logger });
+                throw new CredentialsProviderError$2(String(e), { logger: options.logger });
             }
         }, options.maxRetries ?? 3, options.timeout ?? 1000);
     };
@@ -11652,7 +12223,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                 };
             }
             catch (e) {
-                throw new CredentialsProviderError(e.message, {
+                throw new CredentialsProviderError$2(e.message, {
                     tryNextLink: SHOULD_FAIL_CREDENTIAL_CHAIN,
                     logger,
                 });
@@ -11663,14 +12234,14 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                 token = await getSSOTokenFromFile(ssoStartUrl);
             }
             catch (e) {
-                throw new CredentialsProviderError(`The SSO session associated with this profile is invalid. ${refreshMessage}`, {
+                throw new CredentialsProviderError$2(`The SSO session associated with this profile is invalid. ${refreshMessage}`, {
                     tryNextLink: SHOULD_FAIL_CREDENTIAL_CHAIN,
                     logger,
                 });
             }
         }
         if (new Date(token.expiresAt).getTime() - Date.now() <= 0) {
-            throw new CredentialsProviderError(`The SSO session associated with this profile has expired. ${refreshMessage}`, {
+            throw new CredentialsProviderError$2(`The SSO session associated with this profile has expired. ${refreshMessage}`, {
                 tryNextLink: SHOULD_FAIL_CREDENTIAL_CHAIN,
                 logger,
             });
@@ -11691,14 +12262,14 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             }));
         }
         catch (e) {
-            throw new CredentialsProviderError(e, {
+            throw new CredentialsProviderError$2(e, {
                 tryNextLink: SHOULD_FAIL_CREDENTIAL_CHAIN,
                 logger,
             });
         }
         const { roleCredentials: { accessKeyId, secretAccessKey, sessionToken, expiration, credentialScope, accountId } = {}, } = ssoResp;
         if (!accessKeyId || !secretAccessKey || !sessionToken || !expiration) {
-            throw new CredentialsProviderError("SSO returns an invalid temporary credential.", {
+            throw new CredentialsProviderError$2("SSO returns an invalid temporary credential.", {
                 tryNextLink: SHOULD_FAIL_CREDENTIAL_CHAIN,
                 logger,
             });
@@ -11723,7 +12294,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
     const validateSsoProfile = (profile, logger) => {
         const { sso_start_url, sso_account_id, sso_region, sso_role_name } = profile;
         if (!sso_start_url || !sso_account_id || !sso_region || !sso_role_name) {
-            throw new CredentialsProviderError(`Profile is configured with invalid SSO credentials. Required parameters "sso_account_id", ` +
+            throw new CredentialsProviderError$2(`Profile is configured with invalid SSO credentials. Required parameters "sso_account_id", ` +
                 `"sso_region", "sso_role_name", "sso_start_url". Got ${Object.keys(profile).join(", ")}\nReference: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html`, { tryNextLink: false, logger });
         }
         return profile;
@@ -11740,10 +12311,10 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             const profiles = await parseKnownFiles(init);
             const profile = profiles[profileName];
             if (!profile) {
-                throw new CredentialsProviderError(`Profile ${profileName} was not found.`, { logger: init.logger });
+                throw new CredentialsProviderError$2(`Profile ${profileName} was not found.`, { logger: init.logger });
             }
             if (!isSsoProfile$1(profile)) {
-                throw new CredentialsProviderError(`Profile ${profileName} is not configured with SSO credentials.`, {
+                throw new CredentialsProviderError$2(`Profile ${profileName} is not configured with SSO credentials.`, {
                     logger: init.logger,
                 });
             }
@@ -11752,13 +12323,13 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                 const session = ssoSessions[profile.sso_session];
                 const conflictMsg = ` configurations in profile ${profileName} and sso-session ${profile.sso_session}`;
                 if (ssoRegion && ssoRegion !== session.sso_region) {
-                    throw new CredentialsProviderError(`Conflicting SSO region` + conflictMsg, {
+                    throw new CredentialsProviderError$2(`Conflicting SSO region` + conflictMsg, {
                         tryNextLink: false,
                         logger: init.logger,
                     });
                 }
                 if (ssoStartUrl && ssoStartUrl !== session.sso_start_url) {
-                    throw new CredentialsProviderError(`Conflicting SSO start_url` + conflictMsg, {
+                    throw new CredentialsProviderError$2(`Conflicting SSO start_url` + conflictMsg, {
                         tryNextLink: false,
                         logger: init.logger,
                     });
@@ -11780,7 +12351,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             });
         }
         else if (!ssoStartUrl || !ssoAccountId || !ssoRegion || !ssoRoleName) {
-            throw new CredentialsProviderError("Incomplete configuration. The fromSSO() argument hash must include " +
+            throw new CredentialsProviderError$2("Incomplete configuration. The fromSSO() argument hash must include " +
                 '"ssoStartUrl", "ssoAccountId", "ssoRegion", "ssoRoleName"', { tryNextLink: false, logger: init.logger });
         }
         else {
@@ -11811,7 +12382,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                 const { fromHttp } = await Promise.resolve().then(function () { return index$6; });
                 const { fromContainerMetadata } = await Promise.resolve().then(function () { return index$7; });
                 logger?.debug("@aws-sdk/credential-provider-ini - credential_source is EcsContainer");
-                return async () => chain(fromHttp(options ?? {}), fromContainerMetadata(options))().then(setNamedProvider);
+                return async () => chain$1(fromHttp(options ?? {}), fromContainerMetadata(options))().then(setNamedProvider);
             },
             Ec2InstanceMetadata: async (options) => {
                 logger?.debug("@aws-sdk/credential-provider-ini - credential_source is Ec2InstanceMetadata");
@@ -11828,7 +12399,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             return sourceProvidersMap[credentialSource];
         }
         else {
-            throw new CredentialsProviderError(`Unsupported credential source in profile ${profileName}. Got ${credentialSource}, ` +
+            throw new CredentialsProviderError$2(`Unsupported credential source in profile ${profileName}. Got ${credentialSource}, ` +
                 `expected EcsContainer or Ec2InstanceMetadata or Environment.`, { logger });
         }
     };
@@ -11873,7 +12444,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             }, options.clientPlugins);
         }
         if (source_profile && source_profile in visitedProfiles) {
-            throw new CredentialsProviderError(`Detected a cycle attempting to resolve credentials for profile` +
+            throw new CredentialsProviderError$2(`Detected a cycle attempting to resolve credentials for profile` +
                 ` ${getProfileName(options)}. Profiles visited: ` +
                 Object.keys(visitedProfiles).join(", "), { logger: options.logger });
         }
@@ -11897,7 +12468,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             const { mfa_serial } = profileData;
             if (mfa_serial) {
                 if (!options.mfaCodeProvider) {
-                    throw new CredentialsProviderError(`Profile ${profileName} requires multi-factor authentication, but no MFA code callback was provided.`, { logger: options.logger, tryNextLink: false });
+                    throw new CredentialsProviderError$2(`Profile ${profileName} requires multi-factor authentication, but no MFA code callback was provided.`, { logger: options.logger, tryNextLink: false });
                 }
                 params.SerialNumber = mfa_serial;
                 params.TokenCode = await options.mfaCodeProvider(mfa_serial);
@@ -11991,7 +12562,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
         if (isSsoProfile(data)) {
             return await resolveSsoCredentials(profileName, data, options);
         }
-        throw new CredentialsProviderError(`Could not resolve credentials using profile: [${profileName}] in configuration/credentials file(s).`, { logger: options.logger });
+        throw new CredentialsProviderError$2(`Could not resolve credentials using profile: [${profileName}] in configuration/credentials file(s).`, { logger: options.logger });
     };
 
     const fromIni = (_init = {}) => async ({ callerClientConfig } = {}) => {
@@ -12062,15 +12633,15 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                     return getValidatedProcessCredentials(profileName, data, profiles);
                 }
                 catch (error) {
-                    throw new CredentialsProviderError(error.message, { logger });
+                    throw new CredentialsProviderError$2(error.message, { logger });
                 }
             }
             else {
-                throw new CredentialsProviderError(`Profile ${profileName} did not contain credential_process.`, { logger });
+                throw new CredentialsProviderError$2(`Profile ${profileName} did not contain credential_process.`, { logger });
             }
         }
         else {
-            throw new CredentialsProviderError(`Profile ${profileName} could not be found in shared credentials file.`, {
+            throw new CredentialsProviderError$2(`Profile ${profileName} could not be found in shared credentials file.`, {
                 logger,
             });
         }
@@ -12124,7 +12695,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
         const roleArn = init?.roleArn ?? process.env[ENV_ROLE_ARN];
         const roleSessionName = init?.roleSessionName ?? process.env[ENV_ROLE_SESSION_NAME];
         if (!webIdentityTokenFile || !roleArn) {
-            throw new CredentialsProviderError("Web identity configuration not specified", {
+            throw new CredentialsProviderError$2("Web identity configuration not specified", {
                 logger: init.logger,
             });
         }
@@ -12148,8 +12719,8 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
 
     const defaultSSOOIDCHttpAuthSchemeParametersProvider = async (config, context, input) => {
         return {
-            operation: getSmithyContext(context).operation,
-            region: (await normalizeProvider$1(config.region)()) ||
+            operation: getSmithyContext$1(context).operation,
+            region: (await normalizeProvider$2(config.region)()) ||
                 (() => {
                     throw new Error("expected `region` to be configured for `aws.auth#sigv4`");
                 })(),
@@ -12191,7 +12762,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
     const resolveHttpAuthSchemeConfig$2 = (config) => {
         const config_0 = resolveAwsSdkSigV4Config(config);
         return Object.assign(config_0, {
-            authSchemePreference: normalizeProvider$1(config.authSchemePreference ?? []),
+            authSchemePreference: normalizeProvider$2(config.authSchemePreference ?? []),
         });
     };
 
@@ -12210,7 +12781,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
     };
 
     var name$1 = "@aws-sdk/nested-clients";
-    var version$1 = "3.804.0";
+    var version$1 = "3.817.0";
     var description$1 = "Nested clients for AWS SDK packages.";
     var main$1 = "./dist-cjs/index.js";
     var module$1 = "./dist-es/index.js";
@@ -12238,38 +12809,38 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
     var dependencies$1 = {
     	"@aws-crypto/sha256-browser": "5.2.0",
     	"@aws-crypto/sha256-js": "5.2.0",
-    	"@aws-sdk/core": "3.804.0",
+    	"@aws-sdk/core": "3.816.0",
     	"@aws-sdk/middleware-host-header": "3.804.0",
     	"@aws-sdk/middleware-logger": "3.804.0",
     	"@aws-sdk/middleware-recursion-detection": "3.804.0",
-    	"@aws-sdk/middleware-user-agent": "3.804.0",
-    	"@aws-sdk/region-config-resolver": "3.804.0",
+    	"@aws-sdk/middleware-user-agent": "3.816.0",
+    	"@aws-sdk/region-config-resolver": "3.808.0",
     	"@aws-sdk/types": "3.804.0",
-    	"@aws-sdk/util-endpoints": "3.804.0",
+    	"@aws-sdk/util-endpoints": "3.808.0",
     	"@aws-sdk/util-user-agent-browser": "3.804.0",
-    	"@aws-sdk/util-user-agent-node": "3.804.0",
-    	"@smithy/config-resolver": "^4.1.0",
-    	"@smithy/core": "^3.3.1",
+    	"@aws-sdk/util-user-agent-node": "3.816.0",
+    	"@smithy/config-resolver": "^4.1.2",
+    	"@smithy/core": "^3.3.3",
     	"@smithy/fetch-http-handler": "^5.0.2",
     	"@smithy/hash-node": "^4.0.2",
     	"@smithy/invalid-dependency": "^4.0.2",
     	"@smithy/middleware-content-length": "^4.0.2",
-    	"@smithy/middleware-endpoint": "^4.1.2",
-    	"@smithy/middleware-retry": "^4.1.3",
-    	"@smithy/middleware-serde": "^4.0.3",
+    	"@smithy/middleware-endpoint": "^4.1.6",
+    	"@smithy/middleware-retry": "^4.1.7",
+    	"@smithy/middleware-serde": "^4.0.5",
     	"@smithy/middleware-stack": "^4.0.2",
-    	"@smithy/node-config-provider": "^4.0.2",
+    	"@smithy/node-config-provider": "^4.1.1",
     	"@smithy/node-http-handler": "^4.0.4",
     	"@smithy/protocol-http": "^5.1.0",
-    	"@smithy/smithy-client": "^4.2.2",
+    	"@smithy/smithy-client": "^4.2.6",
     	"@smithy/types": "^4.2.0",
     	"@smithy/url-parser": "^4.0.2",
     	"@smithy/util-base64": "^4.0.0",
     	"@smithy/util-body-length-browser": "^4.0.0",
     	"@smithy/util-body-length-node": "^4.0.0",
-    	"@smithy/util-defaults-mode-browser": "^4.0.10",
-    	"@smithy/util-defaults-mode-node": "^4.0.10",
-    	"@smithy/util-endpoints": "^3.0.2",
+    	"@smithy/util-defaults-mode-browser": "^4.0.14",
+    	"@smithy/util-defaults-mode-node": "^4.0.14",
+    	"@smithy/util-endpoints": "^3.0.4",
     	"@smithy/util-middleware": "^4.0.2",
     	"@smithy/util-retry": "^4.0.3",
     	"@smithy/util-utf8": "^4.0.0",
@@ -12384,7 +12955,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             ],
             logger: config?.logger ?? new NoOpLogger(),
             serviceId: config?.serviceId ?? "SSO OIDC",
-            urlParser: config?.urlParser ?? parseUrl,
+            urlParser: config?.urlParser ?? parseUrl$1,
             utf8Decoder: config?.utf8Decoder ?? fromUtf8,
             utf8Encoder: config?.utf8Encoder ?? toUtf8,
         };
@@ -12396,19 +12967,22 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
         const defaultConfigProvider = () => defaultsMode().then(loadConfigsForDefaultMode);
         const clientSharedValues = getRuntimeConfig$5(config);
         emitWarningIfUnsupportedVersion$1(process.version);
-        const profileConfig = { profile: config?.profile };
+        const loaderConfig = {
+            profile: config?.profile,
+            logger: clientSharedValues.logger,
+        };
         return {
             ...clientSharedValues,
             ...config,
             runtime: "node",
             defaultsMode,
-            authSchemePreference: config?.authSchemePreference ?? loadConfig(NODE_AUTH_SCHEME_PREFERENCE_OPTIONS, profileConfig),
+            authSchemePreference: config?.authSchemePreference ?? loadConfig(NODE_AUTH_SCHEME_PREFERENCE_OPTIONS, loaderConfig),
             bodyLengthChecker: config?.bodyLengthChecker ?? calculateBodyLength,
             defaultUserAgentProvider: config?.defaultUserAgentProvider ??
                 createDefaultUserAgentProvider({ serviceId: clientSharedValues.serviceId, clientVersion: packageInfo$1.version }),
             maxAttempts: config?.maxAttempts ?? loadConfig(NODE_MAX_ATTEMPT_CONFIG_OPTIONS, config),
             region: config?.region ??
-                loadConfig(NODE_REGION_CONFIG_OPTIONS, { ...NODE_REGION_CONFIG_FILE_OPTIONS, ...profileConfig }),
+                loadConfig(NODE_REGION_CONFIG_OPTIONS, { ...NODE_REGION_CONFIG_FILE_OPTIONS, ...loaderConfig }),
             requestHandler: NodeHttpHandler.create(config?.requestHandler ?? defaultConfigProvider),
             retryMode: config?.retryMode ??
                 loadConfig({
@@ -12417,9 +12991,9 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                 }, config),
             sha256: config?.sha256 ?? Hash.bind(null, "sha256"),
             streamCollector: config?.streamCollector ?? streamCollector$1,
-            useDualstackEndpoint: config?.useDualstackEndpoint ?? loadConfig(NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, profileConfig),
-            useFipsEndpoint: config?.useFipsEndpoint ?? loadConfig(NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, profileConfig),
-            userAgentAppId: config?.userAgentAppId ?? loadConfig(NODE_APP_ID_CONFIG_OPTIONS, profileConfig),
+            useDualstackEndpoint: config?.useDualstackEndpoint ?? loadConfig(NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+            useFipsEndpoint: config?.useFipsEndpoint ?? loadConfig(NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+            userAgentAppId: config?.userAgentAppId ?? loadConfig(NODE_APP_ID_CONFIG_OPTIONS, loaderConfig),
         };
     };
 
@@ -12989,8 +13563,8 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
 
     const defaultSSOHttpAuthSchemeParametersProvider = async (config, context, input) => {
         return {
-            operation: getSmithyContext(context).operation,
-            region: (await normalizeProvider$1(config.region)()) ||
+            operation: getSmithyContext$1(context).operation,
+            region: (await normalizeProvider$2(config.region)()) ||
                 (() => {
                     throw new Error("expected `region` to be configured for `aws.auth#sigv4`");
                 })(),
@@ -13044,7 +13618,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
     const resolveHttpAuthSchemeConfig$1 = (config) => {
         const config_0 = resolveAwsSdkSigV4Config(config);
         return Object.assign(config_0, {
-            authSchemePreference: normalizeProvider$1(config.authSchemePreference ?? []),
+            authSchemePreference: normalizeProvider$2(config.authSchemePreference ?? []),
         });
     };
 
@@ -13064,7 +13638,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
 
     var name = "@aws-sdk/client-sso";
     var description = "AWS SDK for JavaScript Sso Client for Node.js, Browser and React Native";
-    var version = "3.804.0";
+    var version = "3.817.0";
     var scripts = {
     	build: "concurrently 'yarn:build:cjs' 'yarn:build:es' 'yarn:build:types'",
     	"build:cjs": "node ../../scripts/compilation/inline client-sso",
@@ -13083,38 +13657,38 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
     var dependencies = {
     	"@aws-crypto/sha256-browser": "5.2.0",
     	"@aws-crypto/sha256-js": "5.2.0",
-    	"@aws-sdk/core": "3.804.0",
+    	"@aws-sdk/core": "3.816.0",
     	"@aws-sdk/middleware-host-header": "3.804.0",
     	"@aws-sdk/middleware-logger": "3.804.0",
     	"@aws-sdk/middleware-recursion-detection": "3.804.0",
-    	"@aws-sdk/middleware-user-agent": "3.804.0",
-    	"@aws-sdk/region-config-resolver": "3.804.0",
+    	"@aws-sdk/middleware-user-agent": "3.816.0",
+    	"@aws-sdk/region-config-resolver": "3.808.0",
     	"@aws-sdk/types": "3.804.0",
-    	"@aws-sdk/util-endpoints": "3.804.0",
+    	"@aws-sdk/util-endpoints": "3.808.0",
     	"@aws-sdk/util-user-agent-browser": "3.804.0",
-    	"@aws-sdk/util-user-agent-node": "3.804.0",
-    	"@smithy/config-resolver": "^4.1.0",
-    	"@smithy/core": "^3.3.1",
+    	"@aws-sdk/util-user-agent-node": "3.816.0",
+    	"@smithy/config-resolver": "^4.1.2",
+    	"@smithy/core": "^3.3.3",
     	"@smithy/fetch-http-handler": "^5.0.2",
     	"@smithy/hash-node": "^4.0.2",
     	"@smithy/invalid-dependency": "^4.0.2",
     	"@smithy/middleware-content-length": "^4.0.2",
-    	"@smithy/middleware-endpoint": "^4.1.2",
-    	"@smithy/middleware-retry": "^4.1.3",
-    	"@smithy/middleware-serde": "^4.0.3",
+    	"@smithy/middleware-endpoint": "^4.1.6",
+    	"@smithy/middleware-retry": "^4.1.7",
+    	"@smithy/middleware-serde": "^4.0.5",
     	"@smithy/middleware-stack": "^4.0.2",
-    	"@smithy/node-config-provider": "^4.0.2",
+    	"@smithy/node-config-provider": "^4.1.1",
     	"@smithy/node-http-handler": "^4.0.4",
     	"@smithy/protocol-http": "^5.1.0",
-    	"@smithy/smithy-client": "^4.2.2",
+    	"@smithy/smithy-client": "^4.2.6",
     	"@smithy/types": "^4.2.0",
     	"@smithy/url-parser": "^4.0.2",
     	"@smithy/util-base64": "^4.0.0",
     	"@smithy/util-body-length-browser": "^4.0.0",
     	"@smithy/util-body-length-node": "^4.0.0",
-    	"@smithy/util-defaults-mode-browser": "^4.0.10",
-    	"@smithy/util-defaults-mode-node": "^4.0.10",
-    	"@smithy/util-endpoints": "^3.0.2",
+    	"@smithy/util-defaults-mode-browser": "^4.0.14",
+    	"@smithy/util-defaults-mode-node": "^4.0.14",
+    	"@smithy/util-endpoints": "^3.0.4",
     	"@smithy/util-middleware": "^4.0.2",
     	"@smithy/util-retry": "^4.0.3",
     	"@smithy/util-utf8": "^4.0.0",
@@ -13219,7 +13793,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             ],
             logger: config?.logger ?? new NoOpLogger(),
             serviceId: config?.serviceId ?? "SSO",
-            urlParser: config?.urlParser ?? parseUrl,
+            urlParser: config?.urlParser ?? parseUrl$1,
             utf8Decoder: config?.utf8Decoder ?? fromUtf8,
             utf8Encoder: config?.utf8Encoder ?? toUtf8,
         };
@@ -13231,19 +13805,22 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
         const defaultConfigProvider = () => defaultsMode().then(loadConfigsForDefaultMode);
         const clientSharedValues = getRuntimeConfig$3(config);
         emitWarningIfUnsupportedVersion$1(process.version);
-        const profileConfig = { profile: config?.profile };
+        const loaderConfig = {
+            profile: config?.profile,
+            logger: clientSharedValues.logger,
+        };
         return {
             ...clientSharedValues,
             ...config,
             runtime: "node",
             defaultsMode,
-            authSchemePreference: config?.authSchemePreference ?? loadConfig(NODE_AUTH_SCHEME_PREFERENCE_OPTIONS, profileConfig),
+            authSchemePreference: config?.authSchemePreference ?? loadConfig(NODE_AUTH_SCHEME_PREFERENCE_OPTIONS, loaderConfig),
             bodyLengthChecker: config?.bodyLengthChecker ?? calculateBodyLength,
             defaultUserAgentProvider: config?.defaultUserAgentProvider ??
                 createDefaultUserAgentProvider({ serviceId: clientSharedValues.serviceId, clientVersion: packageInfo.version }),
             maxAttempts: config?.maxAttempts ?? loadConfig(NODE_MAX_ATTEMPT_CONFIG_OPTIONS, config),
             region: config?.region ??
-                loadConfig(NODE_REGION_CONFIG_OPTIONS, { ...NODE_REGION_CONFIG_FILE_OPTIONS, ...profileConfig }),
+                loadConfig(NODE_REGION_CONFIG_OPTIONS, { ...NODE_REGION_CONFIG_FILE_OPTIONS, ...loaderConfig }),
             requestHandler: NodeHttpHandler.create(config?.requestHandler ?? defaultConfigProvider),
             retryMode: config?.retryMode ??
                 loadConfig({
@@ -13252,9 +13829,9 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                 }, config),
             sha256: config?.sha256 ?? Hash.bind(null, "sha256"),
             streamCollector: config?.streamCollector ?? streamCollector$1,
-            useDualstackEndpoint: config?.useDualstackEndpoint ?? loadConfig(NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, profileConfig),
-            useFipsEndpoint: config?.useFipsEndpoint ?? loadConfig(NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, profileConfig),
-            userAgentAppId: config?.userAgentAppId ?? loadConfig(NODE_APP_ID_CONFIG_OPTIONS, profileConfig),
+            useDualstackEndpoint: config?.useDualstackEndpoint ?? loadConfig(NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+            useFipsEndpoint: config?.useFipsEndpoint ?? loadConfig(NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+            userAgentAppId: config?.userAgentAppId ?? loadConfig(NODE_APP_ID_CONFIG_OPTIONS, loaderConfig),
         };
     };
 
@@ -13553,8 +14130,8 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
 
     const defaultSTSHttpAuthSchemeParametersProvider = async (config, context, input) => {
         return {
-            operation: getSmithyContext(context).operation,
-            region: (await normalizeProvider$1(config.region)()) ||
+            operation: getSmithyContext$1(context).operation,
+            region: (await normalizeProvider$2(config.region)()) ||
                 (() => {
                     throw new Error("expected `region` to be configured for `aws.auth#sigv4`");
                 })(),
@@ -13600,7 +14177,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
         const config_0 = resolveStsAuthConfig(config);
         const config_1 = resolveAwsSdkSigV4Config(config_0);
         return Object.assign(config_1, {
-            authSchemePreference: normalizeProvider$1(config.authSchemePreference ?? []),
+            authSchemePreference: normalizeProvider$2(config.authSchemePreference ?? []),
         });
     };
 
@@ -13660,7 +14237,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             ],
             logger: config?.logger ?? new NoOpLogger(),
             serviceId: config?.serviceId ?? "STS",
-            urlParser: config?.urlParser ?? parseUrl,
+            urlParser: config?.urlParser ?? parseUrl$1,
             utf8Decoder: config?.utf8Decoder ?? fromUtf8,
             utf8Encoder: config?.utf8Encoder ?? toUtf8,
         };
@@ -13672,13 +14249,16 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
         const defaultConfigProvider = () => defaultsMode().then(loadConfigsForDefaultMode);
         const clientSharedValues = getRuntimeConfig$1(config);
         emitWarningIfUnsupportedVersion$1(process.version);
-        const profileConfig = { profile: config?.profile };
+        const loaderConfig = {
+            profile: config?.profile,
+            logger: clientSharedValues.logger,
+        };
         return {
             ...clientSharedValues,
             ...config,
             runtime: "node",
             defaultsMode,
-            authSchemePreference: config?.authSchemePreference ?? loadConfig(NODE_AUTH_SCHEME_PREFERENCE_OPTIONS, profileConfig),
+            authSchemePreference: config?.authSchemePreference ?? loadConfig(NODE_AUTH_SCHEME_PREFERENCE_OPTIONS, loaderConfig),
             bodyLengthChecker: config?.bodyLengthChecker ?? calculateBodyLength,
             defaultUserAgentProvider: config?.defaultUserAgentProvider ??
                 createDefaultUserAgentProvider({ serviceId: clientSharedValues.serviceId, clientVersion: packageInfo$1.version }),
@@ -13697,7 +14277,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
             ],
             maxAttempts: config?.maxAttempts ?? loadConfig(NODE_MAX_ATTEMPT_CONFIG_OPTIONS, config),
             region: config?.region ??
-                loadConfig(NODE_REGION_CONFIG_OPTIONS, { ...NODE_REGION_CONFIG_FILE_OPTIONS, ...profileConfig }),
+                loadConfig(NODE_REGION_CONFIG_OPTIONS, { ...NODE_REGION_CONFIG_FILE_OPTIONS, ...loaderConfig }),
             requestHandler: NodeHttpHandler.create(config?.requestHandler ?? defaultConfigProvider),
             retryMode: config?.retryMode ??
                 loadConfig({
@@ -13706,9 +14286,9 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                 }, config),
             sha256: config?.sha256 ?? Hash.bind(null, "sha256"),
             streamCollector: config?.streamCollector ?? streamCollector$1,
-            useDualstackEndpoint: config?.useDualstackEndpoint ?? loadConfig(NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, profileConfig),
-            useFipsEndpoint: config?.useFipsEndpoint ?? loadConfig(NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, profileConfig),
-            userAgentAppId: config?.userAgentAppId ?? loadConfig(NODE_APP_ID_CONFIG_OPTIONS, profileConfig),
+            useDualstackEndpoint: config?.useDualstackEndpoint ?? loadConfig(NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+            useFipsEndpoint: config?.useFipsEndpoint ?? loadConfig(NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, loaderConfig),
+            userAgentAppId: config?.userAgentAppId ?? loadConfig(NODE_APP_ID_CONFIG_OPTIONS, loaderConfig),
         };
     };
 
@@ -14365,7 +14945,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
         if (body !== undefined) {
             contents.body = body;
         }
-        return new HttpRequest(contents);
+        return new HttpRequest$2(contents);
     };
     const SHARED_HEADERS = {
         "content-type": "application/x-www-form-urlencoded",

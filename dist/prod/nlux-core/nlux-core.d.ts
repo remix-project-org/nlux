@@ -271,13 +271,20 @@ interface ComposerOptions {
      */
     submitShortcut?: 'Enter' | 'CommandEnter';
 }
+type ContextFiles = {
+    context: 'currentFile' | 'workspace' | 'openedFiles' | 'none';
+    files?: Array<{
+        fileName: string;
+        fileContent: string;
+    }>;
+};
 interface RemixComposerOptions extends ComposerOptions {
     remixMethodList: Array<string>;
     /**
      * Function to call a plugin method.
      * This is used to call a plugin method.
      */
-    pluginMethodCall?: (pluginName: string, methodName: string, payload?: any) => Promise<any>;
+    pluginMethodCall?: (pluginName: string, methodName: string, payload?: any | ContextFiles) => Promise<any>;
 }
 
 /**

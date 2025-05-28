@@ -204,7 +204,7 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
             }}
           >{"@ Generate Workspace"}</button>
         </div>
-        <div className="mb-3 w-100">
+        <div className="mb-3 w-100" data-id="composer-textarea">
           <textarea
               tabIndex={0}
               ref={textareaRef}
