@@ -153,7 +153,6 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
                 value="currentFile"
                 id="currentFile"
                 onChange={() => {
-                  console.log('changed current file')
                   currentFileHelper(props!, promptDispatch, promptState)
                 }}
                 checked={promptState.currentSelection === 'currentFile'}
@@ -166,7 +165,6 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
           <li>
             <div className="d-flex ml-2 custom-control custom-radio">
               <input className="custom-control-input" type="radio" name="feature" value="allOpenedFiles" id="allOpenedFiles" onChange={() => {
-                console.log('changed opened All Files')
                 openedAllFilesHelper(props!, promptDispatch, promptState)
               }} checked={promptState.currentSelection === 'allOpenedFiles'} />
               <label className="form-check-label custom-control-label" htmlFor="allOpenedFiles" data-id="allOpenedFiles-context-option">
@@ -193,10 +191,12 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
         <div className="mb-3">
           <button
             className="btn bg-dark btn-sm text-secondary"
+            data-id="composer-ai-add-context"
             onClick={() => promptDispatch({ type: 'ADD_CONTEXT', payload: !promptState.selectContext })}
           >{"@ Add context"}</button>
           <button
             className="btn bg-dark ml-2 btn-sm text-secondary"
+            data-id="composer-ai-workspace-generate"
             onClick={() => {
               if (props.pluginMethodCall) {
                 props.pluginMethodCall('templateSelection', 'aiWorkspaceGenerate', {})
@@ -242,7 +242,7 @@ export const RemixComposerComp = (props: RemixComposerProps) => {
           </div>
         </div>
           <RenderIf condition={promptState.files.length > 0}>
-          <div id="context-holder" className="d-flex gap-2 text-white justify-content-start align-items-center flex-wrap text-success py-3 border-warning overflow-y-scroll">
+          <div id="context-holder" className="d-flex gap-2 text-white justify-content-start align-items-center flex-wrap text-success py-3 border-warning overflow-y-scroll" data-id="composer-context-holder">
             {Array.isArray(promptState.files) ? Array.from(new Set(promptState.files.slice(0, 4))).map((file: string, index: number) => {
               return (
                 <span key={index} className="badge badge-info text-success p-1 rounded m-1 text-truncate">
